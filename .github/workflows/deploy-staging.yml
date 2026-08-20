@@ -12,6 +12,7 @@ permissions:
 
 env:
   DOTNET_VERSION: '10.0.x'
+  SOLUTION_FILE: 'CareComply.slnx'
   API_PROJECT: 'src/CareComply.Api/CareComply.Api.csproj'
   PUBLISH_DIR: '${{ github.workspace }}/publish'
   AZURE_WEBAPP_NAME: 'app-carecomply-api-stg'
@@ -22,41 +23,88 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -------------------------------------------------------
+      # Checkout
+      # -------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # -------------------------------------------------------
+      # Setup .NET
+      # -------------------------------------------------------
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # -------------------------------------------------------
+      # Restore repository-local dotnet tools
+      # -------------------------------------------------------
       - name: Restore .NET tools
         run: dotnet tool restore
 
+      # -------------------------------------------------------
+      # Restore NuGet packages
+      # -------------------------------------------------------
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
 
+      # -------------------------------------------------------
+      # Release build
+      # -------------------------------------------------------
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: |
+          dotnet build ${{ env.SOLUTION_FILE }} \
+            --configuration Release \
+            --no-restore
 
-      - name: Test
-        run: >
-          dotnet test
-          --configuration Release
-          --no-build
-          --verbosity normal
+      # -------------------------------------------------------
+      # Application tests
+      # -------------------------------------------------------
+      - name: Test Application
+        run: |
+          dotnet test tests/CareComply.Application.Tests/CareComply.Application.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=normal"
 
+      # -------------------------------------------------------
+      # API integration tests
+      # -------------------------------------------------------
+      - name: Test API Integration
+        run: |
+          dotnet test tests/CareComply.Api.IntegrationTests/CareComply.Api.IntegrationTests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=normal"
+
+      # -------------------------------------------------------
+      # Domain tests
+      # Remove this step if the project does not exist
+      # -------------------------------------------------------
+      - name: Test Domain
+        run: |
+          dotnet test tests/CareComply.Domain.Tests/CareComply.Domain.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=normal"
+
+      # -------------------------------------------------------
+      # Publish API
+      # -------------------------------------------------------
       - name: Publish API
-        run: >
-          dotnet publish
-          ${{ env.API_PROJECT }}
-          --configuration Release
-          --no-build
-          --output ${{ env.PUBLISH_DIR }}
+        run: |
+          dotnet publish ${{ env.API_PROJECT }} \
+            --configuration Release \
+            --no-build \
+            --output "${{ env.PUBLISH_DIR }}"
 
+      # -------------------------------------------------------
+      # Deploy to Azure App Service
+      # -------------------------------------------------------
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ${{ env.PUBLISH_DIR }} 
+          package: ${{ env.PUBLISH_DIR }}
