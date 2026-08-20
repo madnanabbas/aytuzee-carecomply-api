@@ -15,7 +15,7 @@ env:
   SOLUTION_FILE: 'CareComply.slnx'
   API_PROJECT: 'src/CareComply.Api/CareComply.Api.csproj'
   PUBLISH_DIR: '${{ github.workspace }}/publish'
-  AZURE_WEBAPP_NAME: 'app-carecomply-api-stg'
+  AZURE_WEBAPP_NAME: 'aytuzee-carecomply'
 
 jobs:
   build_test_deploy:
@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -------------------------------------------------------
-      # Setup .NET
+      # Setup .NET 10
       # -------------------------------------------------------
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -80,7 +80,6 @@ jobs:
 
       # -------------------------------------------------------
       # Domain tests
-      # Remove this step if the project does not exist
       # -------------------------------------------------------
       - name: Test Domain
         run: |
