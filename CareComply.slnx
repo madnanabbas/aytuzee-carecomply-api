@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CareComply.Api/CareComply.Api.csproj" />
+    <Project Path="src/CareComply.Application/CareComply.Application.csproj" />
+    <Project Path="src/CareComply.Domain/CareComply.Domain.csproj" />
+    <Project Path="src/CareComply.Infrastructure/CareComply.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CareComply.Api.IntegrationTests/CareComply.Api.IntegrationTests.csproj" />
+    <Project Path="tests/CareComply.Application.Tests/CareComply.Application.Tests.csproj" />
+    <Project Path="tests/CareComply.Domain.Tests/CareComply.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
