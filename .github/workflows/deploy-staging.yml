@@ -1,0 +1,62 @@
+name: Deploy CareComply API - Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  API_PROJECT: 'src/CareComply.Api/CareComply.Api.csproj'
+  PUBLISH_DIR: '${{ github.workspace }}/publish'
+  AZURE_WEBAPP_NAME: 'app-carecomply-api-stg'
+
+jobs:
+  build_test_deploy:
+    name: Build, Test and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test
+          --configuration Release
+          --no-build
+          --verbosity normal
+
+      - name: Publish API
+        run: >
+          dotnet publish
+          ${{ env.API_PROJECT }}
+          --configuration Release
+          --no-build
+          --output ${{ env.PUBLISH_DIR }}
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.PUBLISH_DIR }}
