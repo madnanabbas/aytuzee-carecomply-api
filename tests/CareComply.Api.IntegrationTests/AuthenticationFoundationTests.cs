@@ -94,7 +94,7 @@ public sealed class AuthenticationFoundationTests
             "__Host-CareComply.MfaContext");
     }
 
-    [Fact]
+    [Fact] 
     public void UnknownConfiguredMfaPermissionFailsClosed()
     {
         var services = new ServiceCollection();
