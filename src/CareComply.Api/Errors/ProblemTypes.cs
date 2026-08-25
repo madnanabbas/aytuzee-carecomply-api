@@ -13,6 +13,16 @@ public static class ProblemTypes
     public const string MfaRateLimit = "urn:carecomply:problem:mfa-rate-limit";
     public const string MfaRecoveryFailed = "urn:carecomply:problem:mfa-recovery-failed";
     public const string MfaVerificationFailed = "urn:carecomply:problem:mfa-verification-failed";
+    public const string PasswordResetInvalid = "urn:carecomply:problem:password-reset-invalid";
+    public const string PasswordRecoveryRateLimit = "urn:carecomply:problem:password-recovery-rate-limit";
     public const string RateLimit = "urn:carecomply:problem:authentication-rate-limit";
     public const string Validation = "urn:carecomply:problem:validation";
+    public const string UserConflict = "urn:carecomply:problem:user-conflict";
+    public const string UserDuplicateEmail = "urn:carecomply:problem:user-duplicate-email";
+    public const string UserNotFound = "urn:carecomply:problem:user-not-found";
+    public const string UserProvisioningFailed = "urn:carecomply:problem:user-provisioning-failed";
+    public const string UserRoleInvalid = "urn:carecomply:problem:user-role-invalid";
+    public const string UserSelfDeactivation = "urn:carecomply:problem:user-self-deactivation";
+    public const string UserMfaRequiredByPermissions = "urn:carecomply:problem:user-mfa-required-by-permissions";
+    public const string UserMfaMethodInvalid = "urn:carecomply:problem:user-mfa-method-invalid";
 }

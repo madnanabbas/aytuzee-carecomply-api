@@ -122,7 +122,7 @@ public sealed class AuthenticationFoundationTests
         [
             new MfaCodeRequest { Code = secret },
             new MfaRecoveryCodeRequest { RecoveryCode = secret },
-            new MfaContextResponse("mfaRequired", secret),
+            new MfaContextResponse("mfaRequired", "Authenticator", secret),
             new MfaEnrollmentResponse(secret, secret),
             new MfaEnrollmentConfirmedResponse([secret]),
         ];

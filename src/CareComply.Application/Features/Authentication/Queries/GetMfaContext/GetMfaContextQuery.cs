@@ -3,4 +3,4 @@ using Mediator;
 
 namespace CareComply.Application.Features.Authentication.Queries.GetMfaContext;
 
-public sealed record GetMfaContextQuery : IQuery<MfaContextKind>;
+public sealed record GetMfaContextQuery : IQuery<MfaContext>;

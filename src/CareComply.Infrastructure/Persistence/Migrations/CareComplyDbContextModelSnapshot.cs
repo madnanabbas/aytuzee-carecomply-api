@@ -450,6 +450,13 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("MfaMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("Authenticator");
+
                     b.Property<string>("NormalizedEmail")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -470,6 +477,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresMfa")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("SecurityStamp")
                         .HasMaxLength(64)
@@ -497,6 +509,458 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_Users_NormalizedUserName");
 
                     b.ToTable("Users", "dbo");
+                });
+
+            modelBuilder.Entity("CareComply.Infrastructure.Navigation.NavigationFeature", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IconKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("ModuleId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("ParentFeatureId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Route")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PK_NavigationFeatures");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NavigationFeatures_Key");
+
+                    b.HasIndex("ParentFeatureId");
+
+                    b.HasIndex("Route")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NavigationFeatures_Route");
+
+                    b.HasIndex("ModuleId", "ParentFeatureId", "IsActive", "SortOrder", "Key")
+                        .HasDatabaseName("IX_NavigationFeatures_Module_Parent_Active_Order");
+
+                    b.ToTable("NavigationFeatures", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_NavigationFeatures_SortOrder", "[SortOrder] >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IconKey = "dashboard",
+                            IsActive = true,
+                            Key = "dashboard",
+                            ModuleId = 1,
+                            Name = "Dashboard",
+                            Route = "/dashboard",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IconKey = "clients",
+                            IsActive = true,
+                            Key = "clients",
+                            ModuleId = 2,
+                            Name = "Clients",
+                            Route = "/clients",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 3,
+                            IconKey = "employees",
+                            IsActive = true,
+                            Key = "employees",
+                            ModuleId = 2,
+                            Name = "Employees",
+                            Route = "/employees",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = 4,
+                            IconKey = "dhs-library",
+                            IsActive = true,
+                            Key = "dhs-library",
+                            ModuleId = 3,
+                            Name = "DHS Library",
+                            Route = "/dhs-library",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 5,
+                            IconKey = "documents",
+                            IsActive = true,
+                            Key = "documents",
+                            ModuleId = 3,
+                            Name = "Documents",
+                            Route = "/documents",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = 6,
+                            IconKey = "expiry-review",
+                            IsActive = true,
+                            Key = "expiry-review",
+                            ModuleId = 3,
+                            Name = "Expiry & Review",
+                            Route = "/expiry-review",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = 7,
+                            IconKey = "training",
+                            IsActive = true,
+                            Key = "training",
+                            ModuleId = 3,
+                            Name = "Training",
+                            Route = "/training",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = 8,
+                            IconKey = "background-checks",
+                            IsActive = true,
+                            Key = "background-checks",
+                            ModuleId = 3,
+                            Name = "Background Checks",
+                            Route = "/background-checks",
+                            SortOrder = 50
+                        },
+                        new
+                        {
+                            Id = 9,
+                            IconKey = "notifications",
+                            IsActive = true,
+                            Key = "notifications",
+                            ModuleId = 4,
+                            Name = "Notifications",
+                            Route = "/notifications",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 10,
+                            IconKey = "reports",
+                            IsActive = true,
+                            Key = "reports",
+                            ModuleId = 4,
+                            Name = "Reports",
+                            Route = "/reports",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = 11,
+                            IconKey = "access-management",
+                            IsActive = true,
+                            Key = "access-management",
+                            ModuleId = 5,
+                            Name = "Access Management",
+                            Route = "/access-control",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 12,
+                            IconKey = "users",
+                            IsActive = true,
+                            Key = "users",
+                            ModuleId = 5,
+                            Name = "Users",
+                            ParentFeatureId = 11,
+                            Route = "/access-control/users",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 13,
+                            IconKey = "roles",
+                            IsActive = true,
+                            Key = "roles",
+                            ModuleId = 5,
+                            Name = "Roles",
+                            ParentFeatureId = 11,
+                            Route = "/access-control/roles",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = 14,
+                            IconKey = "permissions",
+                            IsActive = true,
+                            Key = "permissions",
+                            ModuleId = 5,
+                            Name = "Permissions",
+                            ParentFeatureId = 11,
+                            Route = "/access-control/permissions",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = 15,
+                            IconKey = "audit-logs",
+                            IsActive = true,
+                            Key = "audit-logs",
+                            ModuleId = 5,
+                            Name = "Audit Logs",
+                            ParentFeatureId = 11,
+                            Route = "/access-control/audit-logs",
+                            SortOrder = 40
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Infrastructure.Navigation.NavigationFeaturePermission", b =>
+                {
+                    b.Property<int>("FeatureId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("FeatureId", "PermissionId")
+                        .HasName("PK_NavigationFeaturePermissions");
+
+                    b.HasIndex("PermissionId")
+                        .HasDatabaseName("IX_NavigationFeaturePermissions_PermissionId");
+
+                    b.ToTable("NavigationFeaturePermissions", "dbo");
+
+                    b.HasData(
+                        new
+                        {
+                            FeatureId = 1,
+                            PermissionId = 1
+                        },
+                        new
+                        {
+                            FeatureId = 2,
+                            PermissionId = 2
+                        },
+                        new
+                        {
+                            FeatureId = 3,
+                            PermissionId = 11
+                        },
+                        new
+                        {
+                            FeatureId = 4,
+                            PermissionId = 32
+                        },
+                        new
+                        {
+                            FeatureId = 5,
+                            PermissionId = 6
+                        },
+                        new
+                        {
+                            FeatureId = 5,
+                            PermissionId = 15
+                        },
+                        new
+                        {
+                            FeatureId = 5,
+                            PermissionId = 24
+                        },
+                        new
+                        {
+                            FeatureId = 5,
+                            PermissionId = 30
+                        },
+                        new
+                        {
+                            FeatureId = 6,
+                            PermissionId = 37
+                        },
+                        new
+                        {
+                            FeatureId = 7,
+                            PermissionId = 20
+                        },
+                        new
+                        {
+                            FeatureId = 8,
+                            PermissionId = 26
+                        },
+                        new
+                        {
+                            FeatureId = 9,
+                            PermissionId = 39
+                        },
+                        new
+                        {
+                            FeatureId = 10,
+                            PermissionId = 41
+                        },
+                        new
+                        {
+                            FeatureId = 11,
+                            PermissionId = 42
+                        },
+                        new
+                        {
+                            FeatureId = 11,
+                            PermissionId = 43
+                        },
+                        new
+                        {
+                            FeatureId = 11,
+                            PermissionId = 44
+                        },
+                        new
+                        {
+                            FeatureId = 11,
+                            PermissionId = 45
+                        },
+                        new
+                        {
+                            FeatureId = 11,
+                            PermissionId = 46
+                        },
+                        new
+                        {
+                            FeatureId = 11,
+                            PermissionId = 47
+                        },
+                        new
+                        {
+                            FeatureId = 11,
+                            PermissionId = 48
+                        },
+                        new
+                        {
+                            FeatureId = 12,
+                            PermissionId = 42
+                        },
+                        new
+                        {
+                            FeatureId = 13,
+                            PermissionId = 44
+                        },
+                        new
+                        {
+                            FeatureId = 14,
+                            PermissionId = 46
+                        },
+                        new
+                        {
+                            FeatureId = 15,
+                            PermissionId = 48
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Infrastructure.Navigation.NavigationModule", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PK_NavigationModules");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NavigationModules_Key");
+
+                    b.HasIndex("IsActive", "SortOrder", "Key")
+                        .HasDatabaseName("IX_NavigationModules_Active_Order");
+
+                    b.ToTable("NavigationModules", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_NavigationModules_SortOrder", "[SortOrder] >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IsActive = true,
+                            Key = "overview",
+                            Name = "Overview",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IsActive = true,
+                            Key = "people",
+                            Name = "People",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = 3,
+                            IsActive = true,
+                            Key = "compliance",
+                            Name = "Compliance",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = 4,
+                            IsActive = true,
+                            Key = "operations",
+                            Name = "Operations",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = 5,
+                            IsActive = true,
+                            Key = "administration",
+                            Name = "Administration",
+                            SortOrder = 50
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -637,6 +1101,39 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_RolePermissions_Roles_RoleId");
+                });
+
+            modelBuilder.Entity("CareComply.Infrastructure.Navigation.NavigationFeature", b =>
+                {
+                    b.HasOne("CareComply.Infrastructure.Navigation.NavigationModule", null)
+                        .WithMany()
+                        .HasForeignKey("ModuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_NavigationFeatures_NavigationModules_ModuleId");
+
+                    b.HasOne("CareComply.Infrastructure.Navigation.NavigationFeature", null)
+                        .WithMany()
+                        .HasForeignKey("ParentFeatureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_NavigationFeatures_NavigationFeatures_ParentFeatureId");
+                });
+
+            modelBuilder.Entity("CareComply.Infrastructure.Navigation.NavigationFeaturePermission", b =>
+                {
+                    b.HasOne("CareComply.Infrastructure.Navigation.NavigationFeature", null)
+                        .WithMany()
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_NavigationFeaturePermissions_NavigationFeatures_FeatureId");
+
+                    b.HasOne("CareComply.Infrastructure.Authorization.Permission", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_NavigationFeaturePermissions_Permissions_PermissionId");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>

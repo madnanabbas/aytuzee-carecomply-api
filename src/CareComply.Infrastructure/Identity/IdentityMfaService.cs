@@ -7,6 +7,7 @@ namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityMfaService(
     MfaFlowSession flowSession,
+    IMfaEmailSender mfaEmailSender,
     IMfaRequirementEvaluator requirementEvaluator,
     SignInManager<ApplicationUser> signInManager,
     TimeProvider timeProvider,
@@ -16,14 +17,18 @@ internal sealed class IdentityMfaService(
 {
     private const int RecoveryCodeCount = 10;
 
-    public async Task<MfaContextKind> GetContextAsync(CancellationToken cancellationToken)
+    public async Task<MfaContext> GetContextAsync(CancellationToken cancellationToken)
     {
         var context = await GetValidContextAsync(cancellationToken);
         return context?.Kind switch
         {
-            MfaFlowKind.Verification => MfaContextKind.VerificationRequired,
-            MfaFlowKind.Enrollment => MfaContextKind.EnrollmentRequired,
-            _ => MfaContextKind.None,
+            MfaFlowKind.Verification => new(
+                MfaContextKind.VerificationRequired,
+                context.Method),
+            MfaFlowKind.Enrollment => new(
+                MfaContextKind.EnrollmentRequired,
+                UserMfaMethod.Authenticator),
+            _ => new(MfaContextKind.None, UserMfaMethod.Authenticator),
         };
     }
 
@@ -31,7 +36,8 @@ internal sealed class IdentityMfaService(
         CancellationToken cancellationToken)
     {
         var context = await GetValidContextAsync(cancellationToken);
-        if (context is not { Kind: MfaFlowKind.Enrollment })
+        if (context is not
+            { Kind: MfaFlowKind.Enrollment, Method: UserMfaMethod.Authenticator })
         {
             return null;
         }
@@ -51,7 +57,10 @@ internal sealed class IdentityMfaService(
                 throw new InvalidOperationException("The authenticator key could not be loaded.");
             }
 
-            await flowSession.StoreAsync(context.User, MfaFlowKind.Enrollment);
+            await flowSession.StoreAsync(
+                context.User,
+                MfaFlowKind.Enrollment,
+                UserMfaMethod.Authenticator);
         }
 
         var accountName = context.User.Email
@@ -69,7 +78,8 @@ internal sealed class IdentityMfaService(
         CancellationToken cancellationToken)
     {
         var context = await GetValidContextAsync(cancellationToken);
-        if (context is not { Kind: MfaFlowKind.Enrollment })
+        if (context is not
+            { Kind: MfaFlowKind.Enrollment, Method: UserMfaMethod.Authenticator })
         {
             return MfaEnrollmentConfirmation.Failed(MfaSignInStatus.Expired);
         }
@@ -120,10 +130,16 @@ internal sealed class IdentityMfaService(
             return MfaSignInStatus.Expired;
         }
 
-        var result = await signInManager.TwoFactorAuthenticatorSignInAsync(
-            NormalizeAuthenticatorCode(code),
-            isPersistent: false,
-            rememberClient: false);
+        var result = context.Method == UserMfaMethod.Email
+            ? await signInManager.TwoFactorSignInAsync(
+                TokenOptions.DefaultEmailProvider,
+                code.Trim(),
+                isPersistent: false,
+                rememberClient: false)
+            : await signInManager.TwoFactorAuthenticatorSignInAsync(
+                NormalizeAuthenticatorCode(code),
+                isPersistent: false,
+                rememberClient: false);
         return await CompleteSignInAsync(context.User, result, cancellationToken);
     }
 
@@ -132,7 +148,8 @@ internal sealed class IdentityMfaService(
         CancellationToken cancellationToken)
     {
         var context = await GetValidContextAsync(cancellationToken);
-        if (context is not { Kind: MfaFlowKind.Verification })
+        if (context is not
+            { Kind: MfaFlowKind.Verification, Method: UserMfaMethod.Authenticator })
         {
             return MfaSignInStatus.Expired;
         }
@@ -140,6 +157,32 @@ internal sealed class IdentityMfaService(
         var result = await signInManager.TwoFactorRecoveryCodeSignInAsync(
             recoveryCode.Trim());
         return await CompleteSignInAsync(context.User, result, cancellationToken);
+    }
+
+    public async Task<MfaEmailSendStatus> ResendEmailCodeAsync(
+        CancellationToken cancellationToken)
+    {
+        var context = await GetValidContextAsync(cancellationToken);
+        if (context is not { Kind: MfaFlowKind.Verification, Method: UserMfaMethod.Email })
+        {
+            return MfaEmailSendStatus.Expired;
+        }
+
+        if (!context.User.EmailConfirmed || string.IsNullOrWhiteSpace(context.User.Email))
+        {
+            await flowSession.ClearAsync();
+            return MfaEmailSendStatus.Unavailable;
+        }
+
+        var code = await userManager.GenerateTwoFactorTokenAsync(
+            context.User,
+            TokenOptions.DefaultEmailProvider);
+        cancellationToken.ThrowIfCancellationRequested();
+        var delivered = await mfaEmailSender.SendCodeAsync(
+            context.User.Email,
+            code,
+            cancellationToken);
+        return delivered ? MfaEmailSendStatus.Succeeded : MfaEmailSendStatus.Unavailable;
     }
 
     public async Task CancelAsync(CancellationToken cancellationToken)
@@ -192,7 +235,8 @@ internal sealed class IdentityMfaService(
         var user = await userManager.FindByIdAsync(flow.UserId.ToString());
         var isValid = user is { IsActive: true }
             && !string.IsNullOrWhiteSpace(user.SecurityStamp)
-            && string.Equals(user.SecurityStamp, flow.SecurityStamp, StringComparison.Ordinal);
+            && string.Equals(user.SecurityStamp, flow.SecurityStamp, StringComparison.Ordinal)
+            && user.MfaMethod == flow.Method;
 
         if (isValid && flow.Kind == MfaFlowKind.Verification)
         {
@@ -204,6 +248,7 @@ internal sealed class IdentityMfaService(
         else if (isValid && flow.Kind == MfaFlowKind.Enrollment)
         {
             isValid = !user!.TwoFactorEnabled
+                && flow.Method == UserMfaMethod.Authenticator
                 && await requirementEvaluator.IsRequiredAsync(user.Id, cancellationToken);
         }
 
@@ -213,7 +258,7 @@ internal sealed class IdentityMfaService(
             return null;
         }
 
-        return new ValidMfaContext(user!, flow.Kind);
+        return new ValidMfaContext(user!, flow.Kind, flow.Method);
     }
 
     private static string NormalizeAuthenticatorCode(string code) =>
@@ -226,5 +271,8 @@ internal sealed class IdentityMfaService(
             .Select(index => key.Substring(index * 4, Math.Min(4, key.Length - (index * 4)))))
         .ToUpperInvariant();
 
-    private sealed record ValidMfaContext(ApplicationUser User, MfaFlowKind Kind);
+    private sealed record ValidMfaContext(
+        ApplicationUser User,
+        MfaFlowKind Kind,
+        UserMfaMethod Method);
 }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using CareComply.Application.Abstractions.Identity;
 
 namespace CareComply.Infrastructure.Identity;
 
@@ -14,6 +15,10 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     public string LastName { get; set; } = string.Empty;
 
     public bool IsActive { get; set; } = true;
+
+    public bool RequiresMfa { get; set; }
+
+    public UserMfaMethod MfaMethod { get; set; } = UserMfaMethod.Authenticator;
 
     public DateTimeOffset? LastLoginAtUtc { get; set; }
 

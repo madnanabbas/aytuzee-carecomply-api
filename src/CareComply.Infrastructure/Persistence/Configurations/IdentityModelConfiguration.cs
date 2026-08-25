@@ -1,4 +1,5 @@
 using CareComply.Infrastructure.Identity;
+using CareComply.Application.Abstractions.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -13,6 +14,12 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
         entity.Property(user => user.FirstName).HasMaxLength(100).IsRequired();
         entity.Property(user => user.LastName).HasMaxLength(100).IsRequired();
         entity.Property(user => user.IsActive).HasDefaultValue(true).IsRequired();
+        entity.Property(user => user.RequiresMfa).HasDefaultValue(false).IsRequired();
+        entity.Property(user => user.MfaMethod)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(UserMfaMethod.Authenticator)
+            .IsRequired();
         entity.Property(user => user.CreatedAtUtc).IsRequired();
         entity.Property(user => user.UpdatedAtUtc).IsRequired();
         entity.Property(user => user.Email).HasMaxLength(256).IsRequired();

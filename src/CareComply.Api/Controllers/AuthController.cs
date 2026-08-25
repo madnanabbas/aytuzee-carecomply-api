@@ -2,6 +2,8 @@ using CareComply.Api.Authentication;
 using CareComply.Api.Contracts.Authentication;
 using CareComply.Api.Errors;
 using CareComply.Application.Features.Authentication.Commands.Login;
+using CareComply.Application.Features.Authentication.Commands.ForgotPassword;
+using CareComply.Application.Features.Authentication.Commands.ResetPassword;
 using CareComply.Application.Features.Authentication.Queries.GetCurrentUser;
 using Mediator;
 using Microsoft.AspNetCore.Authentication;
@@ -53,6 +55,46 @@ public sealed class AuthController : ControllerBase
                 type: ProblemTypes.AuthenticationUnavailable),
             _ => throw new InvalidOperationException("The login result status is invalid."),
         };
+    }
+
+    [AllowAnonymous]
+    [IgnoreAntiforgeryToken]
+    [EnableRateLimiting(CareComplyAuthenticationServiceCollectionExtensions.ForgotPasswordRateLimitPolicy)]
+    [HttpPost("password/forgot")]
+    public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new ForgotPasswordCommand(request.Email ?? string.Empty),
+            cancellationToken);
+
+        return Accepted(new ForgotPasswordResponse(
+            "If an account exists for this email, a password reset link has been sent."));
+    }
+
+    [AllowAnonymous]
+    [IgnoreAntiforgeryToken]
+    [EnableRateLimiting(CareComplyAuthenticationServiceCollectionExtensions.ResetPasswordRateLimitPolicy)]
+    [HttpPost("password/reset")]
+    public async Task<IActionResult> ResetPassword(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ResetPasswordCommand(
+                request.UserId,
+                request.Token ?? string.Empty,
+                request.NewPassword ?? string.Empty,
+                request.ConfirmPassword ?? string.Empty),
+            cancellationToken);
+
+        return result.Status == ResetPasswordStatus.Succeeded
+            ? NoContent()
+            : Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "The password reset link is invalid or has expired.",
+                type: ProblemTypes.PasswordResetInvalid);
     }
 
     [Authorize]

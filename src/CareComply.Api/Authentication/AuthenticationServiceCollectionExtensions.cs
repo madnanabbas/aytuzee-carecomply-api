@@ -13,9 +13,15 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
 {
     public const string LoginRateLimitPolicy = "authentication-login";
     public const string MfaRateLimitPolicy = "authentication-mfa";
+    public const string MfaEmailResendRateLimitPolicy = "authentication-mfa-email-resend";
+    public const string ForgotPasswordRateLimitPolicy = "authentication-password-forgot";
+    public const string ResetPasswordRateLimitPolicy = "authentication-password-reset";
 
     private const int DefaultLoginPermitLimit = 10;
     private const int DefaultMfaPermitLimit = 5;
+    private const int DefaultMfaEmailResendPermitLimit = 3;
+    private const int DefaultForgotPasswordPermitLimit = 5;
+    private const int DefaultResetPasswordPermitLimit = 10;
 
     public static IServiceCollection AddCareComplyAuthentication(
         this IServiceCollection services,
@@ -78,6 +84,15 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
             "Authentication:LoginRateLimit:PermitLimit") ?? DefaultLoginPermitLimit;
         var mfaPermitLimit = configuration.GetValue<int?>(
             "Authentication:Mfa:VerificationRateLimitPermitLimit") ?? DefaultMfaPermitLimit;
+        var mfaEmailResendPermitLimit = configuration.GetValue<int?>(
+            "Authentication:Mfa:EmailResendRateLimitPermitLimit")
+            ?? DefaultMfaEmailResendPermitLimit;
+        var forgotPasswordPermitLimit = configuration.GetValue<int?>(
+            "Authentication:PasswordRecovery:ForgotRateLimitPermitLimit")
+            ?? DefaultForgotPasswordPermitLimit;
+        var resetPasswordPermitLimit = configuration.GetValue<int?>(
+            "Authentication:PasswordRecovery:ResetRateLimitPermitLimit")
+            ?? DefaultResetPasswordPermitLimit;
 
         if (loginPermitLimit <= 0)
         {
@@ -85,10 +100,16 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                 "Authentication login rate-limit permit count must be greater than zero.");
         }
 
-        if (mfaPermitLimit <= 0)
+        if (mfaPermitLimit <= 0 || mfaEmailResendPermitLimit <= 0)
         {
             throw new InvalidOperationException(
                 "Authentication MFA rate-limit permit count must be greater than zero.");
+        }
+
+        if (forgotPasswordPermitLimit <= 0 || resetPasswordPermitLimit <= 0)
+        {
+            throw new InvalidOperationException(
+                "Authentication password-recovery rate-limit permit counts must be greater than zero.");
         }
 
         services.AddRateLimiter(options =>
@@ -114,10 +135,43 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                         QueueLimit = 0,
                         Window = TimeSpan.FromMinutes(1),
                     }));
+            options.AddPolicy(MfaEmailResendRateLimitPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        AutoReplenishment = true,
+                        PermitLimit = mfaEmailResendPermitLimit,
+                        QueueLimit = 0,
+                        Window = TimeSpan.FromMinutes(1),
+                    }));
+            options.AddPolicy(ForgotPasswordRateLimitPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        AutoReplenishment = true,
+                        PermitLimit = forgotPasswordPermitLimit,
+                        QueueLimit = 0,
+                        Window = TimeSpan.FromMinutes(1),
+                    }));
+            options.AddPolicy(ResetPasswordRateLimitPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        AutoReplenishment = true,
+                        PermitLimit = resetPasswordPermitLimit,
+                        QueueLimit = 0,
+                        Window = TimeSpan.FromMinutes(1),
+                    }));
             options.OnRejected = async (context, cancellationToken) =>
             {
                 var isMfaRequest = context.HttpContext.Request.Path.StartsWithSegments(
                     "/api/auth/mfa",
+                    StringComparison.OrdinalIgnoreCase);
+                var isPasswordRecoveryRequest = context.HttpContext.Request.Path.StartsWithSegments(
+                    "/api/auth/password",
                     StringComparison.OrdinalIgnoreCase);
                 var problemDetailsService = context.HttpContext.RequestServices
                     .GetRequiredService<IProblemDetailsService>();
@@ -130,10 +184,14 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                             Status = StatusCodes.Status429TooManyRequests,
                             Title = isMfaRequest
                                 ? "Too many verification attempts."
-                                : "Too many authentication attempts.",
+                                : isPasswordRecoveryRequest
+                                    ? "Too many password recovery attempts."
+                                    : "Too many authentication attempts.",
                             Type = isMfaRequest
                                 ? ProblemTypes.MfaRateLimit
-                                : ProblemTypes.RateLimit,
+                                : isPasswordRecoveryRequest
+                                    ? ProblemTypes.PasswordRecoveryRateLimit
+                                    : ProblemTypes.RateLimit,
                         },
                     });
             };

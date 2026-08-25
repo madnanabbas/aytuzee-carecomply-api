@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
+using CareComply.Application.Abstractions.Identity;
 
 namespace CareComply.Infrastructure.Identity;
 
@@ -20,15 +21,20 @@ internal enum MfaFlowKind
 internal sealed record MfaFlowState(
     Guid UserId,
     string SecurityStamp,
-    MfaFlowKind Kind);
+    MfaFlowKind Kind,
+    UserMfaMethod Method);
 
 internal sealed class MfaFlowSession(
     IHttpContextAccessor httpContextAccessor,
     IOptions<IdentityOptions> identityOptions)
 {
     private const string FlowKindClaim = "carecomply:mfa-flow";
+    private const string MfaMethodClaim = "carecomply:mfa-method";
 
-    public async Task StoreAsync(ApplicationUser user, MfaFlowKind kind)
+    public async Task StoreAsync(
+        ApplicationUser user,
+        MfaFlowKind kind,
+        UserMfaMethod method)
     {
         var httpContext = GetHttpContext();
         var securityStamp = user.SecurityStamp;
@@ -43,6 +49,7 @@ internal sealed class MfaFlowSession(
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(identityOptions.Value.ClaimsIdentity.SecurityStampClaimType, securityStamp),
                 new Claim(FlowKindClaim, kind.ToString()),
+                new Claim(MfaMethodClaim, method.ToString()),
             ],
             MfaAuthenticationDefaults.FlowScheme);
 
@@ -61,11 +68,13 @@ internal sealed class MfaFlowSession(
         var securityStamp = principal?.FindFirstValue(
             identityOptions.Value.ClaimsIdentity.SecurityStampClaimType);
         var kindValue = principal?.FindFirstValue(FlowKindClaim);
+        var methodValue = principal?.FindFirstValue(MfaMethodClaim);
 
         return Guid.TryParse(userIdValue, out var userId)
             && !string.IsNullOrWhiteSpace(securityStamp)
             && Enum.TryParse<MfaFlowKind>(kindValue, ignoreCase: false, out var kind)
-                ? new MfaFlowState(userId, securityStamp, kind)
+            && Enum.TryParse<UserMfaMethod>(methodValue, ignoreCase: false, out var method)
+                ? new MfaFlowState(userId, securityStamp, kind, method)
                 : null;
     }
 

@@ -4,7 +4,7 @@ namespace CareComply.Application.Abstractions.Identity;
 
 public interface IIdentityMfa
 {
-    Task<MfaContextKind> GetContextAsync(CancellationToken cancellationToken);
+    Task<MfaContext> GetContextAsync(CancellationToken cancellationToken);
 
     Task<MfaEnrollmentData?> BeginEnrollmentAsync(CancellationToken cancellationToken);
 
@@ -20,8 +20,12 @@ public interface IIdentityMfa
         string recoveryCode,
         CancellationToken cancellationToken);
 
+    Task<MfaEmailSendStatus> ResendEmailCodeAsync(CancellationToken cancellationToken);
+
     Task CancelAsync(CancellationToken cancellationToken);
 }
+
+public sealed record MfaContext(MfaContextKind Kind, UserMfaMethod Method);
 
 public enum MfaContextKind
 {
@@ -34,6 +38,13 @@ public enum MfaSignInStatus
 {
     Succeeded,
     Invalid,
+    Expired,
+    Unavailable,
+}
+
+public enum MfaEmailSendStatus
+{
+    Succeeded,
     Expired,
     Unavailable,
 }
