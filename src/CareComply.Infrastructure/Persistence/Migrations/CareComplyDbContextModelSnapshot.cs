@@ -23,6 +23,41 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+
+            modelBuilder.Entity("CareComply.Domain.AccessManagement.RoleProfile", b =>
+                {
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("RoleId")
+                        .HasName("PK_RoleProfiles");
+
+                    b.ToTable("RoleProfiles", "dbo");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.AccessManagement.RolePermissionFeatureLink", b =>
+                {
+                    b.Property<int>("FeatureId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("FeatureId", "PermissionId")
+                        .HasName("PK_RolePermissionFeatureLinks");
+
+                    b.HasIndex("PermissionId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_RolePermissionFeatureLinks_PermissionId");
+
+                    b.ToTable("RolePermissionFeatureLinks", "dbo");
+                });
+
             modelBuilder.Entity("CareComply.Infrastructure.Auditing.AuditLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1074,6 +1109,34 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("UserTokens", "dbo");
+                });
+
+
+            modelBuilder.Entity("CareComply.Domain.AccessManagement.RoleProfile", b =>
+                {
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationRole", null)
+                        .WithOne()
+                        .HasForeignKey("CareComply.Domain.AccessManagement.RoleProfile", "RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoleProfiles_Roles_RoleId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.AccessManagement.RolePermissionFeatureLink", b =>
+                {
+                    b.HasOne("CareComply.Infrastructure.Navigation.NavigationFeature", null)
+                        .WithMany()
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_RolePermissionFeatureLinks_NavigationFeatures_FeatureId");
+
+                    b.HasOne("CareComply.Infrastructure.Authorization.Permission", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_RolePermissionFeatureLinks_Permissions_PermissionId");
                 });
 
             modelBuilder.Entity("CareComply.Infrastructure.Auditing.AuditLog", b =>

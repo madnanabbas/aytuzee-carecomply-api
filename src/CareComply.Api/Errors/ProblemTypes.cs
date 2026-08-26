@@ -15,6 +15,11 @@ public static class ProblemTypes
     public const string MfaVerificationFailed = "urn:carecomply:problem:mfa-verification-failed";
     public const string PasswordResetInvalid = "urn:carecomply:problem:password-reset-invalid";
     public const string PasswordRecoveryRateLimit = "urn:carecomply:problem:password-recovery-rate-limit";
+    public const string RoleConflict = "urn:carecomply:problem:role-conflict";
+    public const string RoleDuplicateName = "urn:carecomply:problem:role-duplicate-name";
+    public const string RoleLastManager = "urn:carecomply:problem:role-last-manager";
+    public const string RoleNotFound = "urn:carecomply:problem:role-not-found";
+    public const string RolePermissionInvalid = "urn:carecomply:problem:role-permission-invalid";
     public const string RateLimit = "urn:carecomply:problem:authentication-rate-limit";
     public const string Validation = "urn:carecomply:problem:validation";
     public const string UserConflict = "urn:carecomply:problem:user-conflict";

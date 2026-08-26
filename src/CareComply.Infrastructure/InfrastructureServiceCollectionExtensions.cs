@@ -4,6 +4,7 @@ using CareComply.Application.Abstractions.Identity;
 using CareComply.Application.Abstractions.Navigation;
 using CareComply.Application.Authorization;
 using CareComply.Infrastructure.Auditing;
+using CareComply.Infrastructure.AccessManagement;
 using CareComply.Infrastructure.Authorization;
 using CareComply.Infrastructure.Identity;
 using CareComply.Infrastructure.Identity.Development;
@@ -116,6 +117,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIdentitySessionValidator, IdentitySessionValidator>();
         services.AddScoped<IIdentityUserReader, IdentityUserReader>();
         services.AddScoped<IRoleDirectory, EfRoleDirectory>();
+        services.AddScoped<CareComply.Application.Abstractions.AccessManagement.IRoleManagement, EfRoleManagement>();
         services.AddScoped<IUserDirectory, EfUserDirectory>();
         services.AddScoped<IUserProvisioning, IdentityUserProvisioning>();
         services.AddScoped<IUserGeneralAdministration, IdentityUserGeneralAdministration>();
