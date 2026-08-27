@@ -21,6 +21,7 @@ public sealed record UpdateUserGeneralRequest(
     string LastName,
     string Email,
     string? PhoneNumber,
+    string? Password,
     string EditorVersion);
 
 public sealed record UpdateUserStatusRequest(string EditorVersion);

@@ -34,6 +34,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
             request.FirstName,
             request.LastName,
             request.Email,
+            request.Password,
             request.PhoneNumber,
             request.IsActive,
             request.RequiresMfa,
@@ -52,6 +53,10 @@ public sealed class UsersController(ISender sender) : ControllerBase
                 statusCode: 409,
                 title: "That email address is already in use.",
                 type: ProblemTypes.UserDuplicateEmail),
+            UserProvisioningStatus.InvalidPassword => Problem(
+                statusCode: 400,
+                title: "The password does not meet the account password requirements.",
+                type: ProblemTypes.UserPasswordInvalid),
             UserProvisioningStatus.RoleNotFound => Problem(
                 statusCode: 400,
                 title: "One or more selected roles are unavailable.",
@@ -93,6 +98,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
             request.LastName,
             request.Email,
             request.PhoneNumber,
+            request.Password,
             request.EditorVersion), cancellationToken);
         if (result.AuthorizationFailure is { } failure)
         {
@@ -280,6 +286,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
                 when result.User is { } user => Ok(MapDetails(user)),
             UserAdministrationStatus.NotFound => Problem(statusCode: 404, title: "User not found.", type: ProblemTypes.UserNotFound),
             UserAdministrationStatus.DuplicateEmail => Problem(statusCode: 409, title: "That email address is already in use.", type: ProblemTypes.UserDuplicateEmail),
+            UserAdministrationStatus.InvalidPassword => Problem(statusCode: 400, title: "The password does not meet the account password requirements.", type: ProblemTypes.UserPasswordInvalid),
             _ => Problem(statusCode: 409, title: "The user was changed by another request. Reload and try again.", type: ProblemTypes.UserConflict),
         };
 

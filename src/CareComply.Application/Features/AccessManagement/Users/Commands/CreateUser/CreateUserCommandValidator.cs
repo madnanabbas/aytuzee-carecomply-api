@@ -18,6 +18,10 @@ public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCom
             .WithMessage("Last name is required.")
             .MaximumLength(100);
         RuleFor(command => command.Email).NotEmpty().MaximumLength(256).EmailAddress();
+        RuleFor(command => command.Password)
+            .NotEmpty()
+            .MinimumLength(UserPasswordPolicy.MinimumLength)
+            .MaximumLength(UserPasswordPolicy.MaximumLength);
         RuleFor(command => command.MfaMethod).IsInEnum();
         RuleFor(command => command.PhoneNumber)
             .MaximumLength(32)

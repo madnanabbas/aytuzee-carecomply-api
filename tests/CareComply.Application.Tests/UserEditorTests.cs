@@ -33,7 +33,7 @@ public sealed class UserEditorTests
     {
         var administration = new CapturingGeneralAdministration();
         var command = new UpdateUserGeneralCommand(
-            Guid.CreateVersion7(), " Ada ", " Lovelace ", " ada@example.test ", " +1 555 0100 ",
+            Guid.CreateVersion7(), " Ada ", " Lovelace ", " ada@example.test ", "Password123456789", " +1 555 0100 ",
             new string('A', 64));
 
         var result = await new UpdateUserGeneralCommandHandler(administration)
@@ -69,7 +69,7 @@ public sealed class UserEditorTests
     public async Task ValidatorsRejectUnsafeOrIncompleteEditorInput()
     {
         var invalidGeneral = new UpdateUserGeneralCommand(
-            Guid.Empty, "", "", "not-email", "javascript:alert(1)", "raw-stamp");
+            Guid.Empty, "", "", "not-email", "Password", "javascript:alert(1)", "raw-stamp");
         var invalidStatus = new SetUserStatusCommand(Guid.Empty, true, "short");
         var general = await new UpdateUserGeneralCommandValidator().ValidateAsync(invalidGeneral);
         var status = await new SetUserStatusCommandValidator().ValidateAsync(invalidStatus);

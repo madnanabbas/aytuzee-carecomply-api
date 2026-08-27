@@ -12,6 +12,7 @@ public sealed record CreateUserResult(
         : Provisioning?.Status switch
         {
             UserProvisioningStatus.DuplicateEmail => "duplicate-email",
+            UserProvisioningStatus.InvalidPassword => "invalid-password",
             UserProvisioningStatus.RoleNotFound => "role-not-found",
             UserProvisioningStatus.RoleAssignmentFailed => "role-assignment-failed",
             UserProvisioningStatus.Unavailable => "identity-unavailable",

@@ -11,6 +11,7 @@ public sealed record UserProvisioningRequest(
     string FirstName,
     string LastName,
     string Email,
+    string Password,
     string? PhoneNumber,
     bool IsActive,
     bool RequiresMfa,
@@ -25,6 +26,7 @@ public enum UserProvisioningStatus
 {
     Succeeded,
     DuplicateEmail,
+    InvalidPassword,
     RoleNotFound,
     RoleAssignmentFailed,
     Unavailable,

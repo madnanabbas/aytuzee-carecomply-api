@@ -13,6 +13,7 @@ public sealed record UserGeneralUpdateRequest(
     string LastName,
     string Email,
     string? PhoneNumber,
+    string? Password,
     string EditorVersion);
 
 public sealed record UserGeneralUpdateResult(
@@ -26,5 +27,6 @@ public enum UserAdministrationStatus
     NotFound,
     Conflict,
     DuplicateEmail,
+    InvalidPassword,
     NoChanges,
 }

@@ -37,13 +37,14 @@ internal sealed class IdentityUserProvisioning(
             IsActive = request.IsActive,
             RequiresMfa = request.RequiresMfa,
             MfaMethod = request.MfaMethod,
-            EmailConfirmed = false,
+            EmailConfirmed = true,
             LockoutEnabled = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
         };
 
-        var createResult = await userManager.CreateAsync(user);
+        cancellationToken.ThrowIfCancellationRequested();
+        var createResult = await userManager.CreateAsync(user, request.Password);
         if (!createResult.Succeeded)
         {
             return new(MapCreateFailure(createResult), null);
@@ -67,11 +68,19 @@ internal sealed class IdentityUserProvisioning(
         return new(UserProvisioningStatus.Succeeded, user.Id);
     }
 
-    private static UserProvisioningStatus MapCreateFailure(IdentityResult result) =>
-        result.Errors.Any(error =>
-            error.Code.Contains("Duplicate", StringComparison.OrdinalIgnoreCase))
-            ? UserProvisioningStatus.DuplicateEmail
+    private static UserProvisioningStatus MapCreateFailure(IdentityResult result)
+    {
+        if (result.Errors.Any(error =>
+                error.Code.Contains("Duplicate", StringComparison.OrdinalIgnoreCase)))
+        {
+            return UserProvisioningStatus.DuplicateEmail;
+        }
+
+        return result.Errors.Any(error =>
+            error.Code.StartsWith("Password", StringComparison.Ordinal))
+            ? UserProvisioningStatus.InvalidPassword
             : UserProvisioningStatus.Unavailable;
+    }
 
     private sealed record RoleProjection(Guid Id, string Name);
 }

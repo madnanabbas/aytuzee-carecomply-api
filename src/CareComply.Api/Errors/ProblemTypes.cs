@@ -13,6 +13,11 @@ public static class ProblemTypes
     public const string MfaRateLimit = "urn:carecomply:problem:mfa-rate-limit";
     public const string MfaRecoveryFailed = "urn:carecomply:problem:mfa-recovery-failed";
     public const string MfaVerificationFailed = "urn:carecomply:problem:mfa-verification-failed";
+    public const string NavigationConflict = "urn:carecomply:problem:navigation-conflict";
+    public const string NavigationDuplicateKey = "urn:carecomply:problem:navigation-duplicate-key";
+    public const string NavigationDuplicateRoute = "urn:carecomply:problem:navigation-duplicate-route";
+    public const string NavigationInvalidParent = "urn:carecomply:problem:navigation-invalid-parent";
+    public const string NavigationNotFound = "urn:carecomply:problem:navigation-not-found";
     public const string PasswordResetInvalid = "urn:carecomply:problem:password-reset-invalid";
     public const string PasswordRecoveryRateLimit = "urn:carecomply:problem:password-recovery-rate-limit";
     public const string RoleConflict = "urn:carecomply:problem:role-conflict";
@@ -25,6 +30,7 @@ public static class ProblemTypes
     public const string UserConflict = "urn:carecomply:problem:user-conflict";
     public const string UserDuplicateEmail = "urn:carecomply:problem:user-duplicate-email";
     public const string UserNotFound = "urn:carecomply:problem:user-not-found";
+    public const string UserPasswordInvalid = "urn:carecomply:problem:user-password-invalid";
     public const string UserProvisioningFailed = "urn:carecomply:problem:user-provisioning-failed";
     public const string UserRoleInvalid = "urn:carecomply:problem:user-role-invalid";
     public const string UserSelfDeactivation = "urn:carecomply:problem:user-self-deactivation";

@@ -11,6 +11,7 @@ public sealed record UpdateUserGeneralCommand(
     string LastName,
     string Email,
     string? PhoneNumber,
+    string? Password,
     string EditorVersion)
     : ICommand<UpdateUserGeneralResult>, IRequirePermission,
         IAuditableRequest<UpdateUserGeneralResult>
@@ -19,7 +20,7 @@ public sealed record UpdateUserGeneralCommand(
 
     public AuditEvent CreateAuditEvent(UpdateUserGeneralResult response)
     {
-        var succeeded = response.Update?.Status == UserAdministrationStatus.Succeeded;
+        var succeeded = response.Update?.Status is UserAdministrationStatus.Succeeded or UserAdministrationStatus.NoChanges;
         var metadata = succeeded
             ? AuditMetadata.Create(("changedFields", string.Join(',', response.Update!.ChangedFields)))
             : AuditMetadata.Create(("reasonCode", response.ReasonCode));

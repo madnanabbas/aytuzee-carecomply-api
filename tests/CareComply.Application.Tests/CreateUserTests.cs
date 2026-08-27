@@ -19,6 +19,7 @@ public sealed class CreateUserTests
             " Ada ",
             " Lovelace ",
             " ada@example.test ",
+            "Password1235443443",
             " +1 555 0100 ",
             true,
             true,
@@ -33,6 +34,7 @@ public sealed class CreateUserTests
         Assert.Equal("Ada", provisioning.Request!.FirstName);
         Assert.Equal("Lovelace", provisioning.Request.LastName);
         Assert.Equal("ada@example.test", provisioning.Request.Email);
+        Assert.Equal("Password1235443443", provisioning.Request.Password);
         Assert.Equal("+1 555 0100", provisioning.Request.PhoneNumber);
         Assert.True(provisioning.Request.RequiresMfa);
         Assert.Equal(UserMfaMethod.Email, provisioning.Request.MfaMethod);
@@ -54,6 +56,7 @@ public sealed class CreateUserTests
             " ",
             "",
             "not-email",
+            "not-password",
             "javascript:alert(1)",
             true,
             false,
@@ -63,13 +66,14 @@ public sealed class CreateUserTests
             "Valid",
             "User",
             "valid@example.test",
+            "valid-password",
             null,
             true,
             false,
             UserMfaMethod.Authenticator,
             Enumerable.Range(0, 11).Select(_ => Guid.CreateVersion7()).ToArray());
         var missingRoles = new CreateUserCommand(
-            "Valid", "User", "valid@example.test", null, true, false,
+            "Valid", "User", "valid@example.test","password123456", null, true, false,
             UserMfaMethod.Authenticator, []);
 
         Assert.False((await new CreateUserCommandValidator().ValidateAsync(invalid)).IsValid);
@@ -100,6 +104,7 @@ public sealed class CreateUserTests
             "Sensitive",
             "Person",
             "sensitive@example.test",
+            "Password1234567890",
             "+1 555 0199",
             true,
             false,

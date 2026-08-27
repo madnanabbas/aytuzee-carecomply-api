@@ -1,5 +1,10 @@
 using FluentValidation;
 using CareComply.Application.Authorization;
+using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.CreateFeature;
+using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.CreateModule;
+using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.UpdateFeature;
+using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.UpdateModule;
+using CareComply.Application.Features.AccessManagement.NavigationManagement.Queries.ListNavigation;
 using CareComply.Application.Features.AccessManagement.Users.Queries.ListUsers;
 using CareComply.Application.Features.AccessManagement.Users.Queries.GetUser;
 using CareComply.Application.Features.AccessManagement.Users.Commands.UpdateUserGeneral;
@@ -23,6 +28,21 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+        services.AddScoped<
+            IAuthorizationFailureResultFactory<ListNavigationManagementResult>,
+            ListNavigationManagementAuthorizationFailureFactory>();
+        services.AddScoped<
+            IAuthorizationFailureResultFactory<CreateNavigationModuleResult>,
+            CreateNavigationModuleAuthorizationFailureFactory>();
+        services.AddScoped<
+            IAuthorizationFailureResultFactory<UpdateNavigationModuleResult>,
+            UpdateNavigationModuleAuthorizationFailureFactory>();
+        services.AddScoped<
+            IAuthorizationFailureResultFactory<CreateNavigationFeatureResult>,
+            CreateNavigationFeatureAuthorizationFailureFactory>();
+        services.AddScoped<
+            IAuthorizationFailureResultFactory<UpdateNavigationFeatureResult>,
+            UpdateNavigationFeatureAuthorizationFailureFactory>();
         services.AddScoped<
             IAuthorizationFailureResultFactory<ListUsersResult>,
             ListUsersAuthorizationFailureFactory>();

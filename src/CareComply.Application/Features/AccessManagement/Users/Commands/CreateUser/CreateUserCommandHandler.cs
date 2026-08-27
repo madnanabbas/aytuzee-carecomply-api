@@ -14,6 +14,7 @@ public sealed class CreateUserCommandHandler(IUserProvisioning provisioning)
                 command.FirstName.Trim(),
                 command.LastName.Trim(),
                 command.Email.Trim(),
+                command.Password,
                 string.IsNullOrWhiteSpace(command.PhoneNumber) ? null : command.PhoneNumber.Trim(),
                 command.IsActive,
                 command.RequiresMfa,

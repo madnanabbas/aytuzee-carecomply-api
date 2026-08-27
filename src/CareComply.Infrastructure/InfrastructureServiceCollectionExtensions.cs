@@ -55,7 +55,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddIdentityCore<ApplicationUser>(options =>
             {
-                options.Password.RequiredLength = 15;
+                options.Password.RequiredLength = UserPasswordPolicy.MinimumLength;
                 options.Password.RequiredUniqueChars = 1;
                 options.Password.RequireUppercase = false;
                 options.Password.RequireLowercase = false;
@@ -126,6 +126,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IUserRoleAdministration, IdentityUserRoleAdministration>();
         services.AddScoped<IUserPermissionResolver, EfUserPermissionResolver>();
         services.AddScoped<INavigationDirectory, EfNavigationDirectory>();
+        services.AddScoped<INavigationAdministration, EfNavigationAdministration>();
         services.AddScoped<IAuditExecution, EfAuditExecution>();
 
         return services;
