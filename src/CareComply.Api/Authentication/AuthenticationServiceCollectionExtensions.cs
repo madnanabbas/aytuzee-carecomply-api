@@ -53,7 +53,7 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                 options.Cookie.Name = "__Host-CareComply.Auth";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SameSite = SameSiteMode.None;
                 options.Cookie.Path = "/";
                 options.Cookie.Domain = null;
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
@@ -76,7 +76,7 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
             options.Cookie.Name = "__Host-CareComply.XSRF";
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SameSite = SameSiteMode.None;
             options.Cookie.Path = "/";
         });
 
@@ -209,7 +209,7 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
             options.Cookie.Name = name;
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SameSite = SameSiteMode.None;
             options.Cookie.Path = "/";
             options.Cookie.Domain = null;
             options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
