@@ -67,7 +67,7 @@ jobs:
             --configuration Release \
             --no-build \
             --logger "console;verbosity=normal"
-
+ 
       # -------------------------------------------------------
       # API integration tests
       # -------------------------------------------------------
