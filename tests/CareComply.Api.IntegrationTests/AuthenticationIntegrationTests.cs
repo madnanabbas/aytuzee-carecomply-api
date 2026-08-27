@@ -346,17 +346,22 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
 
         Assert.Equal(
             [
-                "__EFMigrationsHistory",
-                "AuditLogs",
-                "Permissions",
-                "RoleClaims",
-                "RolePermissions",
-                "Roles",
-                "UserClaims",
-                "UserLogins",
-                "UserRoles",
-                "Users",
-                "UserTokens",
+                    "__EFMigrationsHistory",
+                    "AuditLogs",
+                    "NavigationFeaturePermissions",
+                    "NavigationFeatures",
+                    "NavigationModules",
+                    "Permissions",
+                    "RoleClaims",
+                    "RolePermissionFeatureLinks",
+                    "RolePermissions",
+                    "RoleProfiles",
+                    "Roles",
+                    "UserClaims",
+                    "UserLogins",
+                    "UserRoles",
+                    "Users",
+                    "UserTokens",
             ],
             tables);
 
@@ -374,18 +379,24 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
 
         Assert.Equal(
             [
+                "UX_NavigationFeatures_Key",
+                "UX_NavigationFeatures_Route",
+                "UX_NavigationModules_Key",
                 "UX_Permissions_Name",
+                "UX_RolePermissionFeatureLinks_PermissionId",
                 "UX_Roles_NormalizedName",
                 "UX_Users_NormalizedEmail",
                 "UX_Users_NormalizedUserName",
             ],
             uniqueIndexes);
 
+        
+
         await using var foreignKeyCommand = connection.CreateCommand();
         foreignKeyCommand.CommandText =
             "SELECT COUNT(*) FROM sys.foreign_keys WHERE schema_id = SCHEMA_ID('dbo')";
         Assert.Equal(
-            9,
+            16,
             Convert.ToInt32(
                 await foreignKeyCommand.ExecuteScalarAsync(),
                 CultureInfo.InvariantCulture));
