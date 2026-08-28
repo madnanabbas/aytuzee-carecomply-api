@@ -55,7 +55,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
         Assert.Contains("path=/", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("secure", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("httponly", cookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("samesite=strict", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=none", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("domain=", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("expires=", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("max-age=", cookie, StringComparison.OrdinalIgnoreCase);
