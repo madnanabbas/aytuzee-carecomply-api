@@ -50,7 +50,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
 
         Assert.Equal(HttpStatusCode.NoContent, loginResponse.StatusCode);
         var cookie = Assert.Single(
-            loginResponse.Headers.GetValues("Set-Cookie"),
+            loginResponse.Headers.GetValues("Set-Cookie"), 
             value => value.StartsWith("__Host-CareComply.Auth=", StringComparison.Ordinal));
         Assert.Contains("path=/", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("secure", cookie, StringComparison.OrdinalIgnoreCase);
