@@ -12,6 +12,7 @@ permissions:
 
 env:
   DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24.15.0'
   SOLUTION_FILE: 'CareComply.slnx'
   API_PROJECT: 'src/CareComply.Api/CareComply.Api.csproj'
   PUBLISH_DIR: '${{ github.workspace }}/publish'
@@ -28,6 +29,46 @@ jobs:
       # -------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # -------------------------------------------------------
+      # Checkout the private Angular staging repository
+      # -------------------------------------------------------
+      - name: Checkout Angular staging repository
+        uses: actions/checkout@v4
+        with:
+          repository: madnanabbas/aytuzee-carecomply
+          ref: staging
+          token: ${{ secrets.CARECOMPLY_FRONTEND_READ_TOKEN }}
+          path: frontend
+          persist-credentials: false
+
+      # -------------------------------------------------------
+      # Build Angular for same-origin App Service hosting
+      # -------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Angular dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Configure same-origin staging API
+        working-directory: frontend
+        run: |
+          mkdir -p public/config
+          cat > public/config/app-config.json <<'EOF'
+          {
+            "apiBaseUrl": "/api"
+          }
+          EOF
+
+      - name: Build Angular
+        working-directory: frontend
+        run: npm run build
 
       # -------------------------------------------------------
       # Setup .NET 10
@@ -97,6 +138,21 @@ jobs:
             --configuration Release \
             --no-build \
             --output "${{ env.PUBLISH_DIR }}"
+
+      # -------------------------------------------------------
+      # Add Angular to the API publish artifact
+      # -------------------------------------------------------
+      - name: Add Angular application to API publish output
+        run: |
+          mkdir -p "${{ env.PUBLISH_DIR }}/wwwroot"
+          cp -R frontend/dist/care-comply/browser/. "${{ env.PUBLISH_DIR }}/wwwroot/"
+
+          test -f "${{ env.PUBLISH_DIR }}/wwwroot/index.html"
+          test -f "${{ env.PUBLISH_DIR }}/wwwroot/staticwebapp.config.json"
+          test -f "${{ env.PUBLISH_DIR }}/wwwroot/config/app-config.json"
+
+          grep -q '"apiBaseUrl": "/api"' \
+            "${{ env.PUBLISH_DIR }}/wwwroot/config/app-config.json"
 
       # -------------------------------------------------------
       # Deploy to Azure App Service

@@ -101,6 +101,23 @@ app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 
+app.UseDefaultFiles();
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        if (context.Context.Request.Path.Equals(
+                "/config/app-config.json",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            context.Context.Response.Headers.CacheControl = "no-store";
+            context.Context.Response.Headers.Pragma = "no-cache";
+            context.Context.Response.Headers.Expires = "0";
+        }
+    },
+});
+
 if (app.Environment.IsStaging())
 {
     app.UseCors(StagingCorsPolicy);
@@ -113,6 +130,30 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapFallback(async context =>
+{
+    if ((!HttpMethods.IsGet(context.Request.Method)
+            && !HttpMethods.IsHead(context.Request.Method))
+        || context.Request.Path.StartsWithSegments(
+            "/api",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    var indexFile = app.Environment.WebRootFileProvider.GetFileInfo("index.html");
+    if (!indexFile.Exists)
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    context.Response.ContentType = "text/html; charset=utf-8";
+    context.Response.Headers.CacheControl = "no-cache";
+    await context.Response.SendFileAsync(indexFile, context.RequestAborted);
+});
 
 app.Run();
 
