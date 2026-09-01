@@ -29,10 +29,10 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddDataProtection();
+        services.AddDataProtection();   
 
         var connectionString = configuration.GetConnectionString(ConnectionStringName);
-
+         
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
