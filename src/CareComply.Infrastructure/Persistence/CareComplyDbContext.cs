@@ -1,3 +1,4 @@
+using CareComply.Domain.Clients;
 using CareComply.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,14 @@ public sealed class CareComplyDbContext
         : base(options)
     {
     }
+
+
+    public DbSet<Client> Clients => Set<Client>();
+    public DbSet<ClientAdditionalProfile> ClientAdditionalProfiles => Set<ClientAdditionalProfile>();
+    public DbSet<ClientService> ClientServices => Set<ClientService>();
+    public DbSet<ClientLanguagePreference> ClientLanguagePreferences => Set<ClientLanguagePreference>();
+    public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
+    public DbSet<ClientHospitalization> ClientHospitalizations => Set<ClientHospitalization>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

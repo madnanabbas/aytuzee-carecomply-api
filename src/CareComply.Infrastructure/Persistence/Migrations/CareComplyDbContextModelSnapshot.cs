@@ -58,6 +58,468 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.ToTable("RolePermissionFeatureLinks", "dbo");
                 });
 
+            modelBuilder.Entity("CareComply.Domain.Clients.Client", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AddressLine1")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("AddressLine2")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Allergies")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("County")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateOnly>("DateOfBirth")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("DischargeDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("DischargeReason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(320)");
+
+                    b.Property<decimal?>("EvvAuthorizedHoursPerWeek")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Gender")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InsuranceProvider")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateOnly?>("IntakeDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsOnboarding")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("MiddleName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OtherServices")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PmiNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("PostalCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("PreferredName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PrimaryPhone")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("ReferralSource")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SafetyMeasures")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("SecondaryPhone")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateOnly>("SocDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("SpecialEquipment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_Clients");
+
+                    b.HasIndex("PmiNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Clients_PmiNumber");
+
+                    b.HasIndex("SocDate")
+                        .HasDatabaseName("IX_Clients_SocDate");
+
+                    b.HasIndex("Location", "Status")
+                        .HasDatabaseName("IX_Clients_Location_Status");
+
+                    b.HasIndex("Status", "LastName", "FirstName")
+                        .HasDatabaseName("IX_Clients_Status_Name");
+
+                    b.ToTable("Clients", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_Clients_DischargeSocDates", "[DischargeDate] IS NULL OR [DischargeDate] >= [SocDate]");
+                            t.HasCheckConstraint("CK_Clients_DischargeState", "([Status] <> 4 AND [DischargeDate] IS NULL) OR ([Status] = 4 AND [DischargeDate] IS NOT NULL)");
+                            t.HasCheckConstraint("CK_Clients_EvvAuthorizedHoursPerWeek", "[EvvAuthorizedHoursPerWeek] IS NULL OR ([EvvAuthorizedHoursPerWeek] >= 0 AND [EvvAuthorizedHoursPerWeek] <= 168)");
+                            t.HasCheckConstraint("CK_Clients_Gender", "[Gender] BETWEEN 0 AND 5");
+                            t.HasCheckConstraint("CK_Clients_IntakeSocDates", "[IntakeDate] IS NULL OR [IntakeDate] <= [SocDate]");
+                            t.HasCheckConstraint("CK_Clients_Status", "[Status] BETWEEN 1 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientAdditionalProfile", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CaregiverPreference")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Demographics")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Diet")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool?>("HasPets")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("HomeCareRating")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool?>("IsVeteran")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LivingArrangement")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("MealSchedule")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("MedicalEquipment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("NutritionalRequirements")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PcaComplexity")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PreferredAmbulance")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PreferredClinic")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PreferredHospital")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ProgramType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferralDetails")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool?>("Smokes")
+                        .HasColumnType("bit");
+
+                    b.HasKey("ClientId")
+                        .HasName("PK_ClientAdditionalProfiles");
+
+                    b.ToTable("ClientAdditionalProfiles", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientAdditionalProfiles_ProgramType", "[ProgramType] BETWEEN 0 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientContact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(320)");
+
+                    b.Property<DateOnly?>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsEmergencyContact")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("Relationship")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientContacts");
+
+                    b.HasIndex("ClientId", "Type")
+                        .HasDatabaseName("IX_ClientContacts_Client_Type");
+
+                    b.HasIndex("ClientId", "Type")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientContacts_Client_Type_Primary")
+                        .HasFilter("[IsPrimary] = 1");
+
+                    b.ToTable("ClientContacts", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientContacts_EffectiveDates", "[EffectiveFrom] IS NULL OR [EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                            t.HasCheckConstraint("CK_ClientContacts_Type", "[Type] BETWEEN 1 AND 8");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientHospitalization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AdmittedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("DischargedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<string>("HospitalName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientHospitalizations");
+
+                    b.HasIndex("ClientId", "AdmittedAtUtc")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_ClientHospitalizations_Client_AdmittedAtUtc");
+
+                    b.ToTable("ClientHospitalizations", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientHospitalizations_Dates", "[DischargedAtUtc] IS NULL OR [DischargedAtUtc] >= [AdmittedAtUtc]");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientLanguagePreference", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LanguageCode")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LanguageName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("ClientId", "LanguageCode")
+                        .HasName("PK_ClientLanguagePreferences");
+
+                    b.HasIndex("ClientId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientLanguagePreferences_Primary")
+                        .HasFilter("[IsPrimary] = 1");
+
+                    b.ToTable("ClientLanguagePreferences", "dbo");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientServices");
+
+                    b.HasIndex("ClientId", "IsActive")
+                        .HasDatabaseName("IX_ClientServices_Client_Active");
+
+                    b.HasIndex("ClientId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientServices_Client_Code_Active")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.HasIndex("ClientId", "Code", "StartDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientServices_Client_Code_StartDate");
+
+                    b.ToTable("ClientServices", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientServices_Dates", "[EndDate] IS NULL OR [EndDate] >= [StartDate]");
+                        });
+                });
             modelBuilder.Entity("CareComply.Infrastructure.Auditing.AuditLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1137,6 +1599,56 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_RolePermissionFeatureLinks_Permissions_PermissionId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientAdditionalProfile", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithOne()
+                        .HasForeignKey("CareComply.Domain.Clients.ClientAdditionalProfile", "ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientAdditionalProfiles_Clients_ClientId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientContact", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientContacts_Clients_ClientId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientHospitalization", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientHospitalizations_Clients_ClientId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientLanguagePreference", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientLanguagePreferences_Clients_ClientId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientService", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientServices_Clients_ClientId");
                 });
 
             modelBuilder.Entity("CareComply.Infrastructure.Auditing.AuditLog", b =>

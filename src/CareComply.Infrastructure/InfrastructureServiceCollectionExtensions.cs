@@ -1,3 +1,5 @@
+using CareComply.Infrastructure.Clients;
+using CareComply.Application.Abstractions.Clients;
 using CareComply.Application.Abstractions.Auditing;
 using CareComply.Application.Abstractions.Authorization;
 using CareComply.Application.Abstractions.Identity;
@@ -127,6 +129,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IUserPermissionResolver, EfUserPermissionResolver>();
         services.AddScoped<INavigationDirectory, EfNavigationDirectory>();
         services.AddScoped<INavigationAdministration, EfNavigationAdministration>();
+        services.AddScoped<IClientDirectory, EfClientDirectory>();
+        services.AddScoped<IClientAdministration, EfClientAdministration>();
         services.AddScoped<IAuditExecution, EfAuditExecution>();
 
         return services;

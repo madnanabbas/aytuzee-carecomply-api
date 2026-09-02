@@ -7,6 +7,12 @@ public static class ProblemTypes
     public const string AuthenticationFailed = "urn:carecomply:problem:authentication-failed";
     public const string AuthenticationRequired = "urn:carecomply:problem:authentication-required";
     public const string AuthenticationUnavailable = "urn:carecomply:problem:authentication-unavailable";
+    public const string ClientConflict = "urn:carecomply:problem:client-conflict";
+    public const string ClientDuplicatePmi = "urn:carecomply:problem:client-duplicate-pmi";
+    public const string ClientInvalidServiceChange = "urn:carecomply:problem:client-invalid-service-change";
+    public const string ClientInvalidState = "urn:carecomply:problem:client-invalid-state";
+    public const string ClientNotFound = "urn:carecomply:problem:client-not-found";
+    public const string ClientServiceHistoryConflict = "urn:carecomply:problem:client-service-history-conflict";
     public const string InternalServerError = "urn:carecomply:problem:internal-server-error";
     public const string MfaChallengeExpired = "urn:carecomply:problem:mfa-challenge-expired";
     public const string MfaEnrollmentState = "urn:carecomply:problem:mfa-enrollment-state";

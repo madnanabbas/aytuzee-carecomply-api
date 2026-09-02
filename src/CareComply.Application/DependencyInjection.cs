@@ -19,6 +19,11 @@ using CareComply.Application.Features.AccessManagement.RoleManagement.Queries.Ge
 using CareComply.Application.Features.AccessManagement.RoleManagement.Commands.CreateRole;
 using CareComply.Application.Features.AccessManagement.RoleManagement.Commands.UpdateRoleGeneral;
 using CareComply.Application.Features.AccessManagement.RoleManagement.Commands.ReplaceRolePermissions;
+using CareComply.Application.Features.Clients.Commands.CreateClient;
+using CareComply.Application.Features.Clients.Commands.UpdateClient;
+using CareComply.Application.Features.Clients.Commands.ChangeClientStatus;
+using CareComply.Application.Features.Clients.Queries.ListClients;
+using CareComply.Application.Features.Clients.Queries.GetClient;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CareComply.Application;
@@ -61,6 +66,11 @@ public static class DependencyInjection
         services.AddScoped<
             IAuthorizationFailureResultFactory<ReplaceUserRolesResult>,
             ReplaceUserRolesAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<CreateClientResult>, CreateClientAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<UpdateClientResult>, UpdateClientAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ChangeClientStatusResult>, ChangeClientStatusAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ListClientsResult>, ListClientsAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<GetClientResult>, GetClientAuthorizationFailureFactory>();
         return services;
     }
 }
