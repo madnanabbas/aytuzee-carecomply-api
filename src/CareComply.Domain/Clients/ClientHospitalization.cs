@@ -43,7 +43,7 @@ public sealed class ClientHospitalization
     public void Discharge(DateTimeOffset dischargedAtUtc)
     {
         if (dischargedAtUtc.Offset != TimeSpan.Zero) throw new ArgumentException("Discharge timestamp must be UTC.", nameof(dischargedAtUtc));
-        if (dischargedAtUtc < AdmittedAtUtc) throw new ArgumentOutOfRangeException(nameof(dischargedAtUtc));
+        ArgumentOutOfRangeException.ThrowIfLessThan(dischargedAtUtc, AdmittedAtUtc);
         DischargedAtUtc = dischargedAtUtc;
     }
 

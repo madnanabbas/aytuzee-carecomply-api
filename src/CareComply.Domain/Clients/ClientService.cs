@@ -11,9 +11,9 @@ public sealed class ClientService
 
     public ClientService(Guid id, Guid clientId, string code, string name, DateOnly startDate)
     {
-        if (id == Guid.Empty) throw new ArgumentException("A service identifier is required.", nameof(id));
-        if (clientId == Guid.Empty) throw new ArgumentException("A client identifier is required.", nameof(clientId));
-        if (startDate == default) throw new ArgumentOutOfRangeException(nameof(startDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
+        ArgumentOutOfRangeException.ThrowIfEqual(clientId, Guid.Empty);
+        ArgumentOutOfRangeException.ThrowIfEqual(startDate, default);
 
         Id = id;
         ClientId = clientId;
@@ -33,7 +33,7 @@ public sealed class ClientService
 
     public void End(DateOnly endDate)
     {
-        if (endDate < StartDate) throw new ArgumentOutOfRangeException(nameof(endDate));
+        ArgumentOutOfRangeException.ThrowIfLessThan(endDate, StartDate);
         EndDate = endDate;
         IsActive = false;
     }

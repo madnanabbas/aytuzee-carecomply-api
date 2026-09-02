@@ -552,7 +552,7 @@ internal sealed class EfClientAdministration(
     }
 
     private static bool LanguagesChanged(
-        IReadOnlyList<ClientLanguagePreference> current,
+        List<ClientLanguagePreference> current,
         IReadOnlyList<ClientLanguageInput> requested)
     {
         if (current.Count != requested.Count)

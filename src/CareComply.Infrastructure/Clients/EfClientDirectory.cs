@@ -58,6 +58,9 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
                 && service.Code == serviceCode));
         }
 
+        var totalCount = await clients.CountAsync(cancellationToken);
+        clients = ApplySort(clients, request.Sort, request.SortDescending);
+
         var query = clients.Select(client => new ClientListProjection(
             client.Id,
             client.FirstName,
@@ -78,9 +81,6 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
             client.UpdatedAtUtc,
             client.Email,
             client.PrimaryPhone));
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        query = ApplySort(query, request.Sort, request.SortDescending);
 
         var rows = await query
             .Skip((request.PageNumber - 1) * request.PageSize)
@@ -207,8 +207,8 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
             ClientEditorVersion.Create(client.RowVersion));
     }
 
-    private static IQueryable<ClientListProjection> ApplySort(
-        IQueryable<ClientListProjection> query,
+    private static IQueryable<Client> ApplySort(
+        IQueryable<Client> query,
         ClientDirectorySort sort,
         bool descending) => (sort, descending) switch
     {

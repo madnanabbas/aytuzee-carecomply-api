@@ -288,13 +288,13 @@ public sealed class ClientsController(ISender sender) : ControllerBase
             ? Unauthorized()
             : Forbid();
 
-    private ActionResult InvalidEnum(string field, string? value, Type enumType) =>
+    private BadRequestObjectResult InvalidEnum(string field, string? value, Type enumType) =>
         InvalidValue(
             field,
             value,
             string.Join(", ", Enum.GetNames(enumType)));
 
-    private ActionResult InvalidValue(string field, string? value, string allowedValues)
+    private BadRequestObjectResult InvalidValue(string field, string? value, string allowedValues)
     {
         var errors = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
@@ -418,11 +418,11 @@ public sealed class ClientsController(ISender sender) : ControllerBase
         request.MealSchedule,
         request.Notes);
 
-    private static IReadOnlyList<ClientServiceInput> MapServices(
+    private static ClientServiceInput[] MapServices(
         IReadOnlyList<ClientServiceRequest>? services) =>
         services?.Select(service => new ClientServiceInput(service.Code, service.Name)).ToArray() ?? [];
 
-    private static IReadOnlyList<ClientLanguageInput> MapLanguages(
+    private static ClientLanguageInput[] MapLanguages(
         IReadOnlyList<ClientLanguageRequest>? languages) =>
         languages?.Select(language => new ClientLanguageInput(
             language.LanguageCode,
