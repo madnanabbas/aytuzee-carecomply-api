@@ -141,6 +141,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("MiddleName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -162,6 +167,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .IsUnicode(false)
                         .HasColumnType("varchar(20)");
+
+                    b.Property<string>("ProtectedSsn")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("PreferredName")
                         .IsRequired()
@@ -246,6 +256,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AdditionalInformation")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("CaregiverPreference")
                         .IsRequired()
@@ -848,6 +863,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             Id = 48,
                             Name = "AuditLog.View"
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Name = "Client.RevealSsn"
                         });
                 });
 
@@ -1267,6 +1287,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             FeatureId = 2,
                             PermissionId = 2
+                        },
+                        new
+                        {
+                            FeatureId = 2,
+                            PermissionId = 49
                         },
                         new
                         {

@@ -51,11 +51,20 @@ internal sealed class ClientIdentityInputValidator : AbstractValidator<ClientIde
             .WithMessage("Date of birth cannot be in the future.")
             .GreaterThanOrEqualTo(earliestReasonableBirthDate)
             .WithMessage("Date of birth is outside the supported range.");
-        RuleFor(input => input.Gender).IsInEnum();
+        RuleFor(input => input.Gender)
+            .IsInEnum()
+            .NotEqual(ClientGender.Unknown)
+            .WithMessage("Gender is required.");
         RuleFor(input => input.PmiNumber)
             .Must(value => !string.IsNullOrWhiteSpace(value))
             .WithMessage("PMI number is required.")
+            .Matches("^[0-9]{8}$")
+            .WithMessage("PMI number must contain exactly 8 digits.")
             .MaximumLength(Client.MaximumPmiLength);
+        RuleFor(input => input.Ssn)
+            .Matches(@"^(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}$")
+            .WithMessage("SSN must use a valid 123-45-6789 format.")
+            .When(input => !string.IsNullOrWhiteSpace(input.Ssn));
     }
 }
 
@@ -69,19 +78,26 @@ internal sealed class ClientContactInputValidator : AbstractValidator<ClientCont
             .EmailAddress()
             .When(input => !string.IsNullOrWhiteSpace(input.Email));
         RuleFor(input => input.PrimaryPhone)
+            .Must(value => !string.IsNullOrWhiteSpace(value))
+            .WithMessage("Primary phone is required.")
             .MaximumLength(Client.MaximumPhoneLength)
-            .Matches(@"^\+?[0-9 ()\-.]{7,30}$")
-            .When(input => !string.IsNullOrWhiteSpace(input.PrimaryPhone));
+            .Matches(@"^\(\d{3}\) \d{3}-\d{4}$")
+            .WithMessage("Primary phone must use (555) 555-1234 format.");
         RuleFor(input => input.SecondaryPhone)
             .MaximumLength(Client.MaximumPhoneLength)
             .Matches(@"^\+?[0-9 ()\-.]{7,30}$")
             .When(input => !string.IsNullOrWhiteSpace(input.SecondaryPhone));
-        RuleFor(input => input.AddressLine1).MaximumLength(Client.MaximumAddressLineLength);
+        RuleFor(input => input.AddressLine1)
+            .Must(value => !string.IsNullOrWhiteSpace(value))
+            .WithMessage("Street address is required.")
+            .MaximumLength(Client.MaximumAddressLineLength);
         RuleFor(input => input.AddressLine2).MaximumLength(Client.MaximumAddressLineLength);
         RuleFor(input => input.City).MaximumLength(Client.MaximumCityLength);
         RuleFor(input => input.State).MaximumLength(Client.MaximumStateLength);
-        RuleFor(input => input.PostalCode).MaximumLength(Client.MaximumPostalCodeLength);
+        RuleFor(input => input.PostalCode)
+            .MaximumLength(Client.MaximumPostalCodeLength);
         RuleFor(input => input.County).MaximumLength(Client.MaximumCountyLength);
+        RuleFor(input => input.Country).MaximumLength(Client.MaximumCountryLength);
     }
 }
 
@@ -132,6 +148,7 @@ internal sealed class ClientAdditionalProfileInputValidator : AbstractValidator<
         RuleFor(input => input.Diet).MaximumLength(ClientAdditionalProfile.MaximumLongTextLength);
         RuleFor(input => input.MealSchedule).MaximumLength(ClientAdditionalProfile.MaximumLongTextLength);
         RuleFor(input => input.Notes).MaximumLength(ClientAdditionalProfile.MaximumLongTextLength);
+        RuleFor(input => input.AdditionalInformation).MaximumLength(ClientAdditionalProfile.MaximumLongTextLength);
     }
 }
 

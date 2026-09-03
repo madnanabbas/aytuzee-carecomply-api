@@ -7,7 +7,13 @@ public sealed record ClientIdentityRequest(
     string? PreferredName,
     DateOnly DateOfBirth,
     string Gender,
-    string PmiNumber);
+    string PmiNumber,
+    string? Ssn = null)
+{
+    public override string ToString() => "ClientIdentityRequest { Ssn = [REDACTED] }";
+}
+
+public sealed record ClientSsnResponse(string Ssn);
 
 public sealed record ClientContactRequest(
     string? InsuranceProvider,
@@ -19,7 +25,8 @@ public sealed record ClientContactRequest(
     string? City,
     string? State,
     string? PostalCode,
-    string? County);
+    string? County,
+    string? Country);
 
 public sealed record ClientCareSetupRequest(
     DateOnly? IntakeDate,
@@ -53,7 +60,8 @@ public sealed record ClientAdditionalProfileRequest(
     string? NutritionalRequirements,
     string? Diet,
     string? MealSchedule,
-    string? Notes);
+    string? Notes,
+    string? AdditionalInformation);
 
 public sealed record ClientServiceRequest(string Code, string Name);
 
@@ -133,7 +141,8 @@ public sealed record ClientIdentityResponse(
     string PreferredName,
     DateOnly DateOfBirth,
     string Gender,
-    string PmiNumber);
+    string PmiNumber,
+    bool HasSsn);
 
 public sealed record ClientContactResponse(
     string InsuranceProvider,
@@ -145,7 +154,8 @@ public sealed record ClientContactResponse(
     string City,
     string State,
     string PostalCode,
-    string County);
+    string County,
+    string Country);
 
 public sealed record ClientCareSetupResponse(
     DateOnly? IntakeDate,
@@ -182,7 +192,8 @@ public sealed record ClientAdditionalProfileResponse(
     string NutritionalRequirements,
     string Diet,
     string MealSchedule,
-    string Notes);
+    string Notes,
+    string AdditionalInformation);
 
 public sealed record ClientServiceResponse(
     Guid Id,

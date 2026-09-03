@@ -31,6 +31,7 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.Property(client => client.DateOfBirth).HasColumnType("date");
         entity.Property(client => client.Gender).HasConversion<int>();
         entity.Property(client => client.PmiNumber).HasMaxLength(Client.MaximumPmiLength).IsUnicode(false).IsRequired();
+        entity.Property(client => client.ProtectedSsn).HasMaxLength(Client.MaximumProtectedSsnLength).IsRequired();
         entity.Property(client => client.InsuranceProvider).HasMaxLength(Client.MaximumInsuranceLength).IsRequired();
         entity.Property(client => client.Email).HasMaxLength(Client.MaximumEmailLength).IsUnicode(false).IsRequired();
         entity.Property(client => client.PrimaryPhone).HasMaxLength(Client.MaximumPhoneLength).IsUnicode(false).IsRequired();
@@ -48,6 +49,7 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.Property(client => client.State).HasMaxLength(Client.MaximumStateLength).IsRequired();
         entity.Property(client => client.PostalCode).HasMaxLength(Client.MaximumPostalCodeLength).IsUnicode(false).IsRequired();
         entity.Property(client => client.County).HasMaxLength(Client.MaximumCountyLength).IsRequired();
+        entity.Property(client => client.Country).HasMaxLength(Client.MaximumCountryLength).IsRequired();
         entity.Property(client => client.EvvAuthorizedHoursPerWeek).HasPrecision(6, 2);
         entity.Property(client => client.SafetyMeasures).HasMaxLength(Client.MaximumTextLength).IsRequired();
         entity.Property(client => client.SpecialEquipment).HasMaxLength(Client.MaximumTextLength).IsRequired();
@@ -91,6 +93,7 @@ internal sealed class ClientAdditionalProfileConfiguration : IEntityTypeConfigur
         entity.Property(profile => profile.Diet).HasMaxLength(ClientAdditionalProfile.MaximumLongTextLength).IsRequired();
         entity.Property(profile => profile.MealSchedule).HasMaxLength(ClientAdditionalProfile.MaximumLongTextLength).IsRequired();
         entity.Property(profile => profile.Notes).HasMaxLength(ClientAdditionalProfile.MaximumLongTextLength).IsRequired();
+        entity.Property(profile => profile.AdditionalInformation).HasMaxLength(ClientAdditionalProfile.MaximumLongTextLength).IsRequired();
         entity.HasOne<Client>()
             .WithOne()
             .HasForeignKey<ClientAdditionalProfile>(profile => profile.ClientId)

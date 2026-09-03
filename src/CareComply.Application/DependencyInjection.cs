@@ -24,6 +24,7 @@ using CareComply.Application.Features.Clients.Commands.UpdateClient;
 using CareComply.Application.Features.Clients.Commands.ChangeClientStatus;
 using CareComply.Application.Features.Clients.Queries.ListClients;
 using CareComply.Application.Features.Clients.Queries.GetClient;
+using CareComply.Application.Features.Clients.Queries.RevealClientSsn;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CareComply.Application;
@@ -71,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthorizationFailureResultFactory<ChangeClientStatusResult>, ChangeClientStatusAuthorizationFailureFactory>();
         services.AddScoped<IAuthorizationFailureResultFactory<ListClientsResult>, ListClientsAuthorizationFailureFactory>();
         services.AddScoped<IAuthorizationFailureResultFactory<GetClientResult>, GetClientAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<RevealClientSsnResult>, RevealClientSsnAuthorizationFailureFactory>();
         return services;
     }
 }

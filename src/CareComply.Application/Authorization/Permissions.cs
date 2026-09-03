@@ -15,6 +15,7 @@ public static class Permissions
         public const string Create = "Client.Create";
         public const string Edit = "Client.Edit";
         public const string Archive = "Client.Archive";
+        public const string RevealSsn = "Client.RevealSsn";
     }
 
     public static class ClientDocument
@@ -131,6 +132,7 @@ public static class Permissions
             Client.Create,
             Client.Edit,
             Client.Archive,
+            Client.RevealSsn,
             ClientDocument.View,
             ClientDocument.Upload,
             ClientDocument.Download,

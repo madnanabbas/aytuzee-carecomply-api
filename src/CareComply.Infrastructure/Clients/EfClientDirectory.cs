@@ -176,6 +176,7 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
             client.DateOfBirth,
             client.Gender,
             client.PmiNumber,
+            !string.IsNullOrWhiteSpace(client.ProtectedSsn),
             client.InsuranceProvider,
             client.Email,
             client.PrimaryPhone,
@@ -194,6 +195,7 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
             client.State,
             client.PostalCode,
             client.County,
+            client.Country,
             client.EvvAuthorizedHoursPerWeek,
             client.SafetyMeasures,
             client.SpecialEquipment,
@@ -244,6 +246,7 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
                 string.Empty,
                 string.Empty,
                 string.Empty,
+                string.Empty,
                 string.Empty)
             : new(
                 profile.ProgramType,
@@ -263,7 +266,8 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
                 profile.NutritionalRequirements,
                 profile.Diet,
                 profile.MealSchedule,
-                profile.Notes);
+                profile.Notes,
+                profile.AdditionalInformation);
 
     private static ClientDirectoryService MapService(ServiceProjection service) => new(
         service.Id,

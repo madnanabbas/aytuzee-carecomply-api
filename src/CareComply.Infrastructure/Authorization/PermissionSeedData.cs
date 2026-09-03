@@ -54,6 +54,7 @@ internal static class PermissionSeedData
             new(46, Permissions.Permission.View),
             new(47, Permissions.Permission.Manage),
             new(48, Permissions.AuditLog.View),
+            new(49, Permissions.Client.RevealSsn),
         ]);
 }
 

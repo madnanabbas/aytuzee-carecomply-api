@@ -66,6 +66,7 @@ public sealed record ClientDirectoryDetails(
     DateOnly DateOfBirth,
     ClientGender Gender,
     string PmiNumber,
+    bool HasSsn,
     string InsuranceProvider,
     string Email,
     string PrimaryPhone,
@@ -84,6 +85,7 @@ public sealed record ClientDirectoryDetails(
     string State,
     string PostalCode,
     string County,
+    string Country,
     decimal? EvvAuthorizedHoursPerWeek,
     string SafetyMeasures,
     string SpecialEquipment,
@@ -114,7 +116,8 @@ public sealed record ClientDirectoryAdditionalProfile(
     string NutritionalRequirements,
     string Diet,
     string MealSchedule,
-    string Notes);
+    string Notes,
+    string AdditionalInformation);
 
 public sealed record ClientDirectoryService(
     Guid Id,

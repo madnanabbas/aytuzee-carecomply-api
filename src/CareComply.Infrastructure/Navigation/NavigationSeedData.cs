@@ -34,6 +34,7 @@ internal static class NavigationSeedData
     [
         new(1, 1),
         new(2, 2),
+        new(2, 49),
         new(3, 11),
         new(4, 32),
         new(5, 6),

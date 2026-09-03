@@ -31,7 +31,8 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddDataProtection();   
+        services.AddDataProtection()
+            .SetApplicationName("CareComply");
 
         var connectionString = configuration.GetConnectionString(ConnectionStringName);
          
@@ -131,6 +132,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<INavigationAdministration, EfNavigationAdministration>();
         services.AddScoped<IClientDirectory, EfClientDirectory>();
         services.AddScoped<IClientAdministration, EfClientAdministration>();
+        services.AddScoped<IClientSensitiveData, DataProtectionClientSensitiveData>();
         services.AddScoped<IAuditExecution, EfAuditExecution>();
 
         return services;

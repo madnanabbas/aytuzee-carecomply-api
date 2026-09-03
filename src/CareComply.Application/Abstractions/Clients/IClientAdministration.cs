@@ -24,7 +24,18 @@ public sealed record ClientIdentityInput(
     string? PreferredName,
     DateOnly DateOfBirth,
     ClientGender Gender,
-    string PmiNumber);
+    string PmiNumber,
+    string? Ssn = null)
+{
+    public override string ToString() => "ClientIdentityInput { Ssn = [REDACTED] }";
+}
+
+public interface IClientSensitiveData
+{
+    string Protect(string ssn);
+    string Unprotect(string protectedSsn);
+    Task<string?> RevealSsnAsync(Guid clientId, CancellationToken cancellationToken);
+}
 
 public sealed record ClientContactInput(
     string? InsuranceProvider,
@@ -36,7 +47,8 @@ public sealed record ClientContactInput(
     string? City,
     string? State,
     string? PostalCode,
-    string? County);
+    string? County,
+    string? Country);
 
 public sealed record ClientCareSetupInput(
     DateOnly? IntakeDate,
@@ -70,7 +82,8 @@ public sealed record ClientAdditionalProfileInput(
     string? NutritionalRequirements,
     string? Diet,
     string? MealSchedule,
-    string? Notes);
+    string? Notes,
+    string? AdditionalInformation);
 
 public sealed record ClientServiceInput(string Code, string Name);
 

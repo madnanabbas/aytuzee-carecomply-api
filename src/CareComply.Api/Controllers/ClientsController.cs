@@ -8,6 +8,7 @@ using CareComply.Application.Features.Clients.Commands.CreateClient;
 using CareComply.Application.Features.Clients.Commands.UpdateClient;
 using CareComply.Application.Features.Clients.Queries.GetClient;
 using CareComply.Application.Features.Clients.Queries.ListClients;
+using CareComply.Application.Features.Clients.Queries.RevealClientSsn;
 using CareComply.Domain.Clients;
 using Mediator;
 using Microsoft.AspNetCore.Mvc;
@@ -114,6 +115,20 @@ public sealed class ClientsController(ISender sender) : ControllerBase
                 statusCode: StatusCodes.Status404NotFound,
                 title: "The requested client was not found.",
                 type: ProblemTypes.ClientNotFound);
+    }
+
+    [HttpGet("{clientId:guid}/ssn")]
+    [HasPermission(Permissions.Client.RevealSsn)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<ClientSsnResponse>> RevealSsn(
+        Guid clientId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new RevealClientSsnQuery(clientId), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+        return result.Ssn is { } ssn
+            ? Ok(new ClientSsnResponse(ssn))
+            : NotFound();
     }
 
     [HttpPost]
@@ -368,7 +383,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
         request.PreferredName,
         request.DateOfBirth,
         gender,
-        request.PmiNumber);
+        request.PmiNumber,
+        request.Ssn);
 
     private static ClientContactInput MapContact(ClientContactRequest request) => new(
         request.InsuranceProvider,
@@ -380,7 +396,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
         request.City,
         request.State,
         request.PostalCode,
-        request.County);
+        request.County,
+        request.Country);
 
     private static ClientCareSetupInput MapCareSetup(ClientCareSetupRequest request) => new(
         request.IntakeDate,
@@ -416,7 +433,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
         request.NutritionalRequirements,
         request.Diet,
         request.MealSchedule,
-        request.Notes);
+        request.Notes,
+        request.AdditionalInformation);
 
     private static ClientServiceInput[] MapServices(
         IReadOnlyList<ClientServiceRequest>? services) =>
@@ -453,7 +471,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
             client.PreferredName,
             client.DateOfBirth,
             client.Gender.ToString(),
-            client.PmiNumber),
+            client.PmiNumber,
+            client.HasSsn),
         new(
             client.InsuranceProvider,
             client.Email,
@@ -464,7 +483,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
             client.City,
             client.State,
             client.PostalCode,
-            client.County),
+            client.County,
+            client.Country),
         new(
             client.IntakeDate,
             client.SocDate,
@@ -498,7 +518,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
             client.AdditionalProfile.NutritionalRequirements,
             client.AdditionalProfile.Diet,
             client.AdditionalProfile.MealSchedule,
-            client.AdditionalProfile.Notes),
+            client.AdditionalProfile.Notes,
+            client.AdditionalProfile.AdditionalInformation),
         client.Services.Select(MapService).ToArray(),
         client.Languages.Select(language => new ClientLanguageResponse(
             language.LanguageCode,

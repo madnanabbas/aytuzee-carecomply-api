@@ -15,7 +15,9 @@ public sealed class Client
     public const int MaximumStateLength = 100;
     public const int MaximumPostalCodeLength = 20;
     public const int MaximumCountyLength = 100;
+    public const int MaximumCountryLength = 100;
     public const int MaximumTextLength = 2000;
+    public const int MaximumProtectedSsnLength = 1000;
     public const decimal MaximumEvvAuthorizedHoursPerWeek = 168m;
 
     private Client()
@@ -56,6 +58,7 @@ public sealed class Client
     public DateOnly DateOfBirth { get; private set; }
     public ClientGender Gender { get; private set; }
     public string PmiNumber { get; private set; } = string.Empty;
+    public string ProtectedSsn { get; private set; } = string.Empty;
     public string InsuranceProvider { get; private set; } = string.Empty;
     public string Email { get; private set; } = string.Empty;
     public string PrimaryPhone { get; private set; } = string.Empty;
@@ -74,6 +77,7 @@ public sealed class Client
     public string State { get; private set; } = string.Empty;
     public string PostalCode { get; private set; } = string.Empty;
     public string County { get; private set; } = string.Empty;
+    public string Country { get; private set; } = string.Empty;
     public decimal? EvvAuthorizedHoursPerWeek { get; private set; }
     public string SafetyMeasures { get; private set; } = string.Empty;
     public string SpecialEquipment { get; private set; } = string.Empty;
@@ -113,6 +117,12 @@ public sealed class Client
         Touch(updatedAtUtc);
     }
 
+    public void ChangeProtectedSsn(string? protectedSsn, DateTimeOffset updatedAtUtc)
+    {
+        ProtectedSsn = Normalize(protectedSsn, MaximumProtectedSsnLength, nameof(protectedSsn));
+        Touch(updatedAtUtc);
+    }
+
     public void ChangeContact(
         string? email,
         string? primaryPhone,
@@ -123,6 +133,7 @@ public sealed class Client
         string? state,
         string? postalCode,
         string? county,
+        string? country,
         DateTimeOffset updatedAtUtc)
     {
         Email = Normalize(email, MaximumEmailLength, nameof(email));
@@ -134,6 +145,7 @@ public sealed class Client
         State = Normalize(state, MaximumStateLength, nameof(state));
         PostalCode = Normalize(postalCode, MaximumPostalCodeLength, nameof(postalCode));
         County = Normalize(county, MaximumCountyLength, nameof(county));
+        Country = Normalize(country, MaximumCountryLength, nameof(country));
         Touch(updatedAtUtc);
     }
 

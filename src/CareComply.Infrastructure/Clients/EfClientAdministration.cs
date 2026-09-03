@@ -8,6 +8,7 @@ namespace CareComply.Infrastructure.Clients;
 internal sealed class EfClientAdministration(
     CareComplyDbContext context,
     IClientDirectory directory,
+    IClientSensitiveData sensitiveData,
     TimeProvider timeProvider) : IClientAdministration
 {
     public async Task<ClientAdministrationResult> CreateAsync(
@@ -41,6 +42,11 @@ internal sealed class EfClientAdministration(
                 request.InitialStatus,
                 now);
 
+            if (!string.IsNullOrWhiteSpace(request.Identity.Ssn))
+            {
+                client.ChangeProtectedSsn(sensitiveData.Protect(request.Identity.Ssn), now);
+            }
+
             client.ChangeContact(
                 request.Contact.Email,
                 request.Contact.PrimaryPhone,
@@ -51,6 +57,7 @@ internal sealed class EfClientAdministration(
                 request.Contact.State,
                 request.Contact.PostalCode,
                 request.Contact.County,
+                request.Contact.Country,
                 now);
             client.ChangeCareSetup(
                 request.CareSetup.IntakeDate,
@@ -153,6 +160,7 @@ internal sealed class EfClientAdministration(
 
         var changedSections = new List<string>(6);
         var identityChanged = IdentityChanged(client, request.Identity);
+        var ssnChanged = !SsnMatches(client.ProtectedSsn, request.Identity.Ssn, sensitiveData);
         var contactChanged = ContactChanged(client, request.Contact);
         var careChanged = CareChanged(client, request.CareSetup, request.Contact.InsuranceProvider);
         var safetyChanged = SafetyChanged(client, request.Safety);
@@ -173,6 +181,7 @@ internal sealed class EfClientAdministration(
         }
 
         if (!identityChanged
+            && !ssnChanged
             && !contactChanged
             && !careChanged
             && !safetyChanged
@@ -204,6 +213,14 @@ internal sealed class EfClientAdministration(
                 changedSections.Add("Identity");
             }
 
+            if (ssnChanged)
+            {
+                client.ChangeProtectedSsn(
+                    string.IsNullOrWhiteSpace(request.Identity.Ssn) ? null : sensitiveData.Protect(request.Identity.Ssn),
+                    now);
+                if (!changedSections.Contains("Identity", StringComparer.Ordinal)) changedSections.Add("Identity");
+            }
+
             if (contactChanged)
             {
                 client.ChangeContact(
@@ -213,10 +230,11 @@ internal sealed class EfClientAdministration(
                     request.Contact.AddressLine1,
                     request.Contact.AddressLine2,
                     request.Contact.City,
-                    request.Contact.State,
-                    request.Contact.PostalCode,
-                    request.Contact.County,
-                    now);
+                request.Contact.State,
+                request.Contact.PostalCode,
+                request.Contact.County,
+                request.Contact.Country,
+                now);
                 changedSections.Add("Contact");
             }
 
@@ -410,7 +428,8 @@ internal sealed class EfClientAdministration(
             input.NutritionalRequirements,
             input.Diet,
             input.MealSchedule,
-            input.Notes);
+            input.Notes,
+            input.AdditionalInformation);
 
     private static bool IdentityChanged(Client client, ClientIdentityInput input) =>
         !Equal(client.FirstName, input.FirstName)
@@ -430,7 +449,27 @@ internal sealed class EfClientAdministration(
         || !Equal(client.City, input.City)
         || !Equal(client.State, input.State)
         || !Equal(client.PostalCode, input.PostalCode)
-        || !Equal(client.County, input.County);
+        || !Equal(client.County, input.County)
+        || !Equal(client.Country, input.Country);
+
+    private static bool SsnMatches(
+        string protectedSsn,
+        string? requestedSsn,
+        IClientSensitiveData sensitiveData)
+    {
+        // Omitted SSN means "leave unchanged" so ordinary client edits cannot clear protected data.
+        if (requestedSsn is null) return true;
+        if (string.IsNullOrWhiteSpace(protectedSsn)) return string.IsNullOrWhiteSpace(requestedSsn);
+        if (string.IsNullOrWhiteSpace(requestedSsn)) return false;
+        try
+        {
+            return string.Equals(sensitiveData.Unprotect(protectedSsn), requestedSsn, StringComparison.Ordinal);
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            return false;
+        }
+    }
 
     private static bool CareChanged(
         Client client,
@@ -476,7 +515,8 @@ internal sealed class EfClientAdministration(
             || !Equal(profile.NutritionalRequirements, input.NutritionalRequirements)
             || !Equal(profile.Diet, input.Diet)
             || !Equal(profile.MealSchedule, input.MealSchedule)
-            || !Equal(profile.Notes, input.Notes);
+            || !Equal(profile.Notes, input.Notes)
+            || !Equal(profile.AdditionalInformation, input.AdditionalInformation);
     }
 
     private static ServiceChangeAnalysis AnalyzeServiceChanges(

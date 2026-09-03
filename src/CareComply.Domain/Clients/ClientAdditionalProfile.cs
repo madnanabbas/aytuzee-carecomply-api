@@ -38,6 +38,7 @@ public sealed class ClientAdditionalProfile
     public string Diet { get; private set; } = string.Empty;
     public string MealSchedule { get; private set; } = string.Empty;
     public string Notes { get; private set; } = string.Empty;
+    public string AdditionalInformation { get; private set; } = string.Empty;
 
     public void Change(
         ClientProgramType programType,
@@ -57,7 +58,8 @@ public sealed class ClientAdditionalProfile
         string? nutritionalRequirements,
         string? diet,
         string? mealSchedule,
-        string? notes)
+        string? notes,
+        string? additionalInformation)
     {
         if (!Enum.IsDefined(programType))
         {
@@ -82,6 +84,7 @@ public sealed class ClientAdditionalProfile
         Diet = NormalizeLong(diet, nameof(diet));
         MealSchedule = NormalizeLong(mealSchedule, nameof(mealSchedule));
         Notes = NormalizeLong(notes, nameof(notes));
+        AdditionalInformation = NormalizeLong(additionalInformation, nameof(additionalInformation));
     }
 
     private static string NormalizeShort(string? value, string parameterName) =>
