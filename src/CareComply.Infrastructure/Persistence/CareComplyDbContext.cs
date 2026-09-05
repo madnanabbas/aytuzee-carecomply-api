@@ -22,6 +22,8 @@ public sealed class CareComplyDbContext
     public DbSet<ClientLanguagePreference> ClientLanguagePreferences => Set<ClientLanguagePreference>();
     public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
     public DbSet<ClientHospitalization> ClientHospitalizations => Set<ClientHospitalization>();
+    public DbSet<ClientTodo> ClientTodos => Set<ClientTodo>();
+    public DbSet<ClientCaregiver> ClientCaregivers => Set<ClientCaregiver>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

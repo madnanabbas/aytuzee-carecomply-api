@@ -67,48 +67,44 @@ internal sealed class EfRoleManagement(
     public async Task<IReadOnlyList<PermissionCatalogModule>> GetPermissionCatalogAsync(
         CancellationToken cancellationToken)
     {
-        var rows = await (
+        var modules = await context.Set<NavigationModule>()
+            .AsNoTracking()
+            .Select(module => new { module.Id, module.Key, module.Name, module.SortOrder })
+            .ToArrayAsync(cancellationToken);
+        var features = await context.Set<NavigationFeature>()
+            .AsNoTracking()
+            .Select(feature => new { feature.Id, feature.ModuleId, feature.Key, feature.Name, feature.SortOrder })
+            .ToArrayAsync(cancellationToken);
+        var permissionLinks = await (
                 from link in context.Set<RolePermissionFeatureLink>().AsNoTracking()
-                join feature in context.Set<NavigationFeature>().AsNoTracking() on link.FeatureId equals feature.Id
-                join module in context.Set<NavigationModule>().AsNoTracking() on feature.ModuleId equals module.Id
                 join permission in context.Set<Permission>().AsNoTracking() on link.PermissionId equals permission.Id
-                where module.IsActive && feature.IsActive
-                orderby module.SortOrder, module.Key, feature.SortOrder, feature.Key, permission.Name
-                select new CatalogRow(
-                    module.Id,
-                    module.Key,
-                    module.Name,
-                    module.SortOrder,
-                    feature.Id,
-                    feature.Key,
-                    feature.Name,
-                    feature.SortOrder,
-                    permission.Id,
-                    permission.Name))
+                select new { link.FeatureId, PermissionId = permission.Id, PermissionCode = permission.Name })
             .ToArrayAsync(cancellationToken);
 
-        return rows
-            .GroupBy(row => new { row.ModuleId, row.ModuleKey, row.ModuleName, row.ModuleSortOrder })
-            .OrderBy(group => group.Key.ModuleSortOrder)
-            .ThenBy(group => group.Key.ModuleKey, StringComparer.Ordinal)
+        return modules
+            .OrderBy(module => module.SortOrder)
+            .ThenBy(module => module.Key, StringComparer.Ordinal)
             .Select(module => new PermissionCatalogModule(
-                module.Key.ModuleId,
-                module.Key.ModuleKey,
-                module.Key.ModuleName,
-                module.Key.ModuleSortOrder,
-                module.GroupBy(row => new { row.FeatureId, row.FeatureKey, row.FeatureName, row.FeatureSortOrder })
-                    .OrderBy(group => group.Key.FeatureSortOrder)
-                    .ThenBy(group => group.Key.FeatureKey, StringComparer.Ordinal)
+                module.Id,
+                module.Key,
+                module.Name,
+                module.SortOrder,
+                features
+                    .Where(feature => feature.ModuleId == module.Id)
+                    .OrderBy(feature => feature.SortOrder)
+                    .ThenBy(feature => feature.Key, StringComparer.Ordinal)
                     .Select(feature => new PermissionCatalogFeature(
-                        feature.Key.FeatureId,
-                        feature.Key.FeatureKey,
-                        feature.Key.FeatureName,
-                        feature.Key.FeatureSortOrder,
-                        feature.OrderBy(row => row.PermissionCode, StringComparer.Ordinal)
-                            .Select(row => new PermissionCatalogPermissions(
-                                row.PermissionId,
-                                row.PermissionCode,
-                                GetActionLabel(row.PermissionCode)))
+                        feature.Id,
+                        feature.Key,
+                        feature.Name,
+                        feature.SortOrder,
+                        permissionLinks
+                            .Where(link => link.FeatureId == feature.Id)
+                            .OrderBy(link => link.PermissionCode, StringComparer.Ordinal)
+                            .Select(link => new PermissionCatalogPermissions(
+                                link.PermissionId,
+                                link.PermissionCode,
+                                GetActionLabel(link.PermissionCode)))
                             .ToArray()))
                     .ToArray()))
             .ToArray();
@@ -384,6 +380,8 @@ internal sealed class EfRoleManagement(
     {
         var separator = permissionCode.LastIndexOf('.');
         var action = separator >= 0 ? permissionCode[(separator + 1)..] : permissionCode;
+        if (string.Equals(action, "Create", StringComparison.Ordinal)) return "Add";
+        if (string.Equals(action, "RevealSsn", StringComparison.Ordinal)) return "Reveal SSN";
         if (action.Length == 0)
         {
             return permissionCode;
@@ -406,9 +404,5 @@ internal sealed class EfRoleManagement(
 
     private sealed record RoleRow(Guid Id, string Name, string ConcurrencyStamp);
     private sealed record CountRow(Guid Id, int Count);
-    private sealed record CatalogRow(
-        int ModuleId, string ModuleKey, string ModuleName, int ModuleSortOrder,
-        int FeatureId, string FeatureKey, string FeatureName, int FeatureSortOrder,
-        int PermissionId, string PermissionCode);
     private sealed record PermissionValidation(bool IsValid, IReadOnlySet<int> PermissionIds);
 }

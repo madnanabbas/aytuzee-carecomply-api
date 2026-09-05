@@ -27,6 +27,26 @@ public static class Permissions
         public const string Archive = "ClientDocument.Archive";
     }
 
+    public static class ClientTodo
+    {
+        public const string View = "ClientTodo.View";
+        public const string Create = "ClientTodo.Create";
+        public const string Edit = "ClientTodo.Edit";
+        public const string Complete = "ClientTodo.Complete";
+        public const string Reopen = "ClientTodo.Reopen";
+        public const string Cancel = "ClientTodo.Cancel";
+    }
+
+    public static class ClientQuickNote { public const string View = "ClientQuickNote.View"; public const string Create = "ClientQuickNote.Create"; public const string Edit = "ClientQuickNote.Edit"; }
+    public static class ClientServiceAgreement { public const string View = "ClientServiceAgreement.View"; public const string Create = "ClientServiceAgreement.Create"; public const string Edit = "ClientServiceAgreement.Edit"; }
+    public static class ClientCaregiver { public const string View = "ClientCaregiver.View"; public const string Create = "ClientCaregiver.Create"; public const string Edit = "ClientCaregiver.Edit"; }
+    public static class ClientResponsibleParty { public const string View = "ClientResponsibleParty.View"; public const string Create = "ClientResponsibleParty.Create"; public const string Edit = "ClientResponsibleParty.Edit"; }
+    public static class ClientHospitalization { public const string View = "ClientHospitalization.View"; public const string Create = "ClientHospitalization.Create"; public const string Edit = "ClientHospitalization.Edit"; }
+    public static class ClientVisit { public const string View = "ClientVisit.View"; public const string Create = "ClientVisit.Create"; public const string Edit = "ClientVisit.Edit"; }
+    public static class ClientForm { public const string View = "ClientForm.View"; public const string Create = "ClientForm.Create"; public const string Edit = "ClientForm.Edit"; }
+    public static class ClientEmailLog { public const string View = "ClientEmailLog.View"; }
+    public static class ClientEmployeeService { public const string View = "ClientEmployeeService.View"; public const string Create = "ClientEmployeeService.Create"; public const string Edit = "ClientEmployeeService.Edit"; }
+
     public static class Employee
     {
         public const string View = "Employee.View";
@@ -133,6 +153,21 @@ public static class Permissions
             Client.Edit,
             Client.Archive,
             Client.RevealSsn,
+            ClientTodo.View,
+            ClientTodo.Create,
+            ClientTodo.Edit,
+            ClientTodo.Complete,
+            ClientTodo.Reopen,
+            ClientTodo.Cancel,
+            ClientQuickNote.View, ClientQuickNote.Create, ClientQuickNote.Edit,
+            ClientServiceAgreement.View, ClientServiceAgreement.Create, ClientServiceAgreement.Edit,
+            ClientCaregiver.View, ClientCaregiver.Create, ClientCaregiver.Edit,
+            ClientResponsibleParty.View, ClientResponsibleParty.Create, ClientResponsibleParty.Edit,
+            ClientHospitalization.View, ClientHospitalization.Create, ClientHospitalization.Edit,
+            ClientVisit.View, ClientVisit.Create, ClientVisit.Edit,
+            ClientForm.View, ClientForm.Create, ClientForm.Edit,
+            ClientEmailLog.View,
+            ClientEmployeeService.View, ClientEmployeeService.Create, ClientEmployeeService.Edit,
             ClientDocument.View,
             ClientDocument.Upload,
             ClientDocument.Download,

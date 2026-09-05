@@ -25,6 +25,9 @@ using CareComply.Application.Features.Clients.Commands.ChangeClientStatus;
 using CareComply.Application.Features.Clients.Queries.ListClients;
 using CareComply.Application.Features.Clients.Queries.GetClient;
 using CareComply.Application.Features.Clients.Queries.RevealClientSsn;
+using CareComply.Application.Features.ClientTodos;
+using CareComply.Application.Features.ClientCaregivers;
+using CareComply.Application.Features.ClientHospitalizations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CareComply.Application;
@@ -73,6 +76,13 @@ public static class DependencyInjection
         services.AddScoped<IAuthorizationFailureResultFactory<ListClientsResult>, ListClientsAuthorizationFailureFactory>();
         services.AddScoped<IAuthorizationFailureResultFactory<GetClientResult>, GetClientAuthorizationFailureFactory>();
         services.AddScoped<IAuthorizationFailureResultFactory<RevealClientSsnResult>, RevealClientSsnAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ListClientTodosResult>, ListClientTodosAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ListClientTodoAssigneesResult>, ListClientTodoAssigneesAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ClientTodoOperationResult>, ClientTodoOperationAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ClientCaregiverListResult>, ClientCaregiverListAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ClientCaregiverCandidatesResult>, ClientCaregiverCandidatesAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<ClientCaregiverOperationResult>, ClientCaregiverOperationAuthorizationFailureFactory>();
+        services.AddScoped<IAuthorizationFailureResultFactory<HospitalizationResult>, HospitalizationAuthorizationFailureFactory>();
         return services;
     }
 }

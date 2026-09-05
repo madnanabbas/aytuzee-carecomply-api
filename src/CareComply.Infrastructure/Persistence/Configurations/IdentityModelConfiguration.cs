@@ -14,6 +14,8 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
         entity.Property(user => user.FirstName).HasMaxLength(100).IsRequired();
         entity.Property(user => user.LastName).HasMaxLength(100).IsRequired();
         entity.Property(user => user.IsActive).HasDefaultValue(true).IsRequired();
+        entity.Property(user => user.IsEmployee).HasDefaultValue(false).IsRequired();
+        entity.Property(user => user.JobTitle).HasMaxLength(100).IsRequired();
         entity.Property(user => user.RequiresMfa).HasDefaultValue(false).IsRequired();
         entity.Property(user => user.MfaMethod)
             .HasConversion<string>()

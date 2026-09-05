@@ -16,6 +16,10 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 
     public bool IsActive { get; set; } = true;
 
+    public bool IsEmployee { get; set; }
+
+    public string JobTitle { get; set; } = string.Empty;
+
     public bool RequiresMfa { get; set; }
 
     public UserMfaMethod MfaMethod { get; set; } = UserMfaMethod.Authenticator;

@@ -94,6 +94,11 @@ if (await StagingIdentityCommand.TryRunAsync(
 
 if (app.Environment.IsDevelopment())
 {
+    await using var scope = app.Services.CreateAsyncScope();
+    await scope.ServiceProvider
+        .GetRequiredService<CareComply.Infrastructure.Identity.Development.DevelopmentWorkforceInitializer>()
+        .InitializeAsync();
+
     app.MapOpenApi();
 }
 

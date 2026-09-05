@@ -55,6 +55,21 @@ internal static class PermissionSeedData
             new(47, Permissions.Permission.Manage),
             new(48, Permissions.AuditLog.View),
             new(49, Permissions.Client.RevealSsn),
+            new(50, Permissions.ClientTodo.View),
+            new(51, Permissions.ClientTodo.Create),
+            new(52, Permissions.ClientTodo.Edit),
+            new(53, Permissions.ClientTodo.Complete),
+            new(54, Permissions.ClientTodo.Reopen),
+            new(55, Permissions.ClientTodo.Cancel),
+            new(56, Permissions.ClientQuickNote.View), new(57, Permissions.ClientQuickNote.Create), new(58, Permissions.ClientQuickNote.Edit),
+            new(59, Permissions.ClientServiceAgreement.View), new(60, Permissions.ClientServiceAgreement.Create), new(61, Permissions.ClientServiceAgreement.Edit),
+            new(62, Permissions.ClientCaregiver.View), new(63, Permissions.ClientCaregiver.Create), new(64, Permissions.ClientCaregiver.Edit),
+            new(65, Permissions.ClientResponsibleParty.View), new(66, Permissions.ClientResponsibleParty.Create), new(67, Permissions.ClientResponsibleParty.Edit),
+            new(68, Permissions.ClientHospitalization.View), new(69, Permissions.ClientHospitalization.Create), new(70, Permissions.ClientHospitalization.Edit),
+            new(71, Permissions.ClientVisit.View), new(72, Permissions.ClientVisit.Create), new(73, Permissions.ClientVisit.Edit),
+            new(74, Permissions.ClientForm.View), new(75, Permissions.ClientForm.Create), new(76, Permissions.ClientForm.Edit),
+            new(77, Permissions.ClientEmailLog.View),
+            new(78, Permissions.ClientEmployeeService.View), new(79, Permissions.ClientEmployeeService.Create), new(80, Permissions.ClientEmployeeService.Edit),
         ]);
 }
 

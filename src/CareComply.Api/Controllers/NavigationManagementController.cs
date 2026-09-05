@@ -7,6 +7,7 @@ using CareComply.Application.Features.AccessManagement.NavigationManagement.Comm
 using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.CreateModule;
 using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.UpdateFeature;
 using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.UpdateModule;
+using CareComply.Application.Features.AccessManagement.NavigationManagement.Commands.DeleteNavigation;
 using CareComply.Application.Features.AccessManagement.NavigationManagement.Queries.ListNavigation;
 using Mediator;
 using Microsoft.AspNetCore.Mvc;
@@ -81,6 +82,17 @@ public sealed class NavigationManagementController(ISender sender) : ControllerB
         return MapMutation(result.Mutation, created: false);
     }
 
+    [HttpDelete("modules/{moduleId:int}")]
+    [HasPermission(Permissions.Permission.Manage)]
+    public async Task<ActionResult<NavigationManagementMutationResponse>> DeleteModule(
+        int moduleId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new DeleteNavigationModuleCommand(moduleId), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+        return MapMutation(result.Mutation, created: false);
+    }
+
     [HttpPost("features")]
     [HasPermission(Permissions.Permission.Manage)]
     public async Task<ActionResult<NavigationManagementMutationResponse>> CreateFeature(
@@ -135,6 +147,17 @@ public sealed class NavigationManagementController(ISender sender) : ControllerB
         return MapMutation(result.Mutation, created: false);
     }
 
+    [HttpDelete("features/{featureId:int}")]
+    [HasPermission(Permissions.Permission.Manage)]
+    public async Task<ActionResult<NavigationManagementMutationResponse>> DeleteFeature(
+        int featureId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new DeleteNavigationFeatureCommand(featureId), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+        return MapMutation(result.Mutation, created: false);
+    }
+
     private ActionResult<NavigationManagementMutationResponse> MapMutation(
         NavigationAdministrationMutation? mutation,
         bool created) => mutation?.Status switch
@@ -159,6 +182,10 @@ public sealed class NavigationManagementController(ISender sender) : ControllerB
             statusCode: StatusCodes.Status400BadRequest,
             title: "The selected parent feature is invalid.",
             type: ProblemTypes.NavigationInvalidParent),
+        NavigationAdministrationMutationStatus.InUse => Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Deactivate or remove dependent features and permission links before deleting this item.",
+            type: ProblemTypes.NavigationConflict),
         _ => Problem(
             statusCode: StatusCodes.Status409Conflict,
             title: "The navigation configuration could not be changed.",

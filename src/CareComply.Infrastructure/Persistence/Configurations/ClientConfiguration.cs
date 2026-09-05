@@ -198,11 +198,19 @@ internal sealed class ClientHospitalizationConfiguration : IEntityTypeConfigurat
         entity.HasKey(hospitalization => hospitalization.Id).HasName("PK_ClientHospitalizations");
         entity.Property(hospitalization => hospitalization.Id).ValueGeneratedNever();
         entity.Property(hospitalization => hospitalization.HospitalName)
-            .HasMaxLength(ClientHospitalization.MaximumHospitalNameLength).IsRequired();
+            .HasMaxLength(ClientHospitalization.HospitalMaxLength).IsRequired();
         entity.Property(hospitalization => hospitalization.AdmittedAtUtc).HasColumnType("datetimeoffset(0)");
         entity.Property(hospitalization => hospitalization.DischargedAtUtc).HasColumnType("datetimeoffset(0)");
         entity.Property(hospitalization => hospitalization.Reason)
-            .HasMaxLength(ClientHospitalization.MaximumReasonLength).IsRequired();
+            .HasMaxLength(ClientHospitalization.ReasonMaxLength).IsRequired();
+        entity.Property(hospitalization => hospitalization.Diagnosis)
+            .HasMaxLength(ClientHospitalization.DetailsMaxLength).IsRequired();
+        entity.Property(hospitalization => hospitalization.DischargeInstructions)
+            .HasMaxLength(ClientHospitalization.DetailsMaxLength).IsRequired();
+        entity.Property(hospitalization => hospitalization.RowVersion).IsRowVersion();
+        entity.HasOne<CareComply.Infrastructure.Identity.ApplicationUser>()
+            .WithMany().HasForeignKey(hospitalization => hospitalization.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<Client>()
             .WithMany()
             .HasForeignKey(hospitalization => hospitalization.ClientId)

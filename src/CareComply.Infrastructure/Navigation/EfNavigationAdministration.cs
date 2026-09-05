@@ -128,6 +128,29 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
             : new(NavigationAdministrationMutationStatus.Unavailable);
     }
 
+    public async Task<NavigationAdministrationMutation> DeleteModuleAsync(
+        int moduleId,
+        CancellationToken cancellationToken)
+    {
+        EnsureAuditedTransaction();
+        if (!await ModuleExistsAsync(moduleId, cancellationToken))
+        {
+            return new(NavigationAdministrationMutationStatus.NotFound);
+        }
+        if (await context.Set<NavigationFeature>().AsNoTracking()
+                .AnyAsync(feature => feature.ModuleId == moduleId, cancellationToken))
+        {
+            return new(NavigationAdministrationMutationStatus.InUse);
+        }
+
+        var affectedRows = await context.Set<NavigationModule>()
+            .Where(module => module.Id == moduleId)
+            .ExecuteDeleteAsync(cancellationToken);
+        return affectedRows == 1
+            ? new(NavigationAdministrationMutationStatus.Succeeded, moduleId)
+            : new(NavigationAdministrationMutationStatus.Unavailable);
+    }
+
     public async Task<NavigationAdministrationMutation> CreateFeatureAsync(
         int moduleId,
         int? parentFeatureId,
@@ -257,6 +280,35 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
                     .SetProperty(feature => feature.IsActive, isActive),
                 cancellationToken);
 
+        return affectedRows == 1
+            ? new(NavigationAdministrationMutationStatus.Succeeded, featureId)
+            : new(NavigationAdministrationMutationStatus.Unavailable);
+    }
+
+    public async Task<NavigationAdministrationMutation> DeleteFeatureAsync(
+        int featureId,
+        CancellationToken cancellationToken)
+    {
+        EnsureAuditedTransaction();
+        if (!await context.Set<NavigationFeature>().AsNoTracking()
+                .AnyAsync(feature => feature.Id == featureId, cancellationToken))
+        {
+            return new(NavigationAdministrationMutationStatus.NotFound);
+        }
+
+        var hasChildren = await context.Set<NavigationFeature>().AsNoTracking()
+            .AnyAsync(feature => feature.ParentFeatureId == featureId, cancellationToken);
+        var hasPermissions = await context.Set<CareComply.Domain.AccessManagement.RolePermissionFeatureLink>()
+            .AsNoTracking()
+            .AnyAsync(link => link.FeatureId == featureId, cancellationToken);
+        if (hasChildren || hasPermissions)
+        {
+            return new(NavigationAdministrationMutationStatus.InUse);
+        }
+
+        var affectedRows = await context.Set<NavigationFeature>()
+            .Where(feature => feature.Id == featureId)
+            .ExecuteDeleteAsync(cancellationToken);
         return affectedRows == 1
             ? new(NavigationAdministrationMutationStatus.Succeeded, featureId)
             : new(NavigationAdministrationMutationStatus.Unavailable);

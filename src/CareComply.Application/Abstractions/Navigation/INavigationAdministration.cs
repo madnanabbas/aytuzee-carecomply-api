@@ -20,6 +20,10 @@ public interface INavigationAdministration
         bool isActive,
         CancellationToken cancellationToken);
 
+    Task<NavigationAdministrationMutation> DeleteModuleAsync(
+        int moduleId,
+        CancellationToken cancellationToken);
+
     Task<NavigationAdministrationMutation> CreateFeatureAsync(
         int moduleId,
         int? parentFeatureId,
@@ -41,6 +45,10 @@ public interface INavigationAdministration
         string iconKey,
         int sortOrder,
         bool isActive,
+        CancellationToken cancellationToken);
+
+    Task<NavigationAdministrationMutation> DeleteFeatureAsync(
+        int featureId,
         CancellationToken cancellationToken);
 }
 
@@ -74,5 +82,6 @@ public enum NavigationAdministrationMutationStatus
     DuplicateKey,
     DuplicateRoute,
     InvalidParent,
+    InUse,
     Unavailable,
 }

@@ -12,6 +12,15 @@ public static class ProblemTypes
     public const string ClientInvalidServiceChange = "urn:carecomply:problem:client-invalid-service-change";
     public const string ClientInvalidState = "urn:carecomply:problem:client-invalid-state";
     public const string ClientNotFound = "urn:carecomply:problem:client-not-found";
+    public const string ClientTodoNotFound = "urn:carecomply:problem:client-todo-not-found";
+    public const string ClientTodoInvalidAssignee = "urn:carecomply:problem:client-todo-invalid-assignee";
+    public const string ClientTodoInvalidState = "urn:carecomply:problem:client-todo-invalid-state";
+    public const string ClientTodoConflict = "urn:carecomply:problem:client-todo-conflict";
+    public const string ClientCaregiverNotFound = "urn:carecomply:problem:client-caregiver-not-found";
+    public const string ClientCaregiverInvalid = "urn:carecomply:problem:client-caregiver-invalid";
+    public const string ClientCaregiverDuplicate = "urn:carecomply:problem:client-caregiver-duplicate";
+    public const string ClientCaregiverPrimaryConflict = "urn:carecomply:problem:client-caregiver-primary-conflict";
+    public const string ClientCaregiverConflict = "urn:carecomply:problem:client-caregiver-conflict";
     public const string ClientServiceHistoryConflict = "urn:carecomply:problem:client-service-history-conflict";
     public const string InternalServerError = "urn:carecomply:problem:internal-server-error";
     public const string MfaChallengeExpired = "urn:carecomply:problem:mfa-challenge-expired";

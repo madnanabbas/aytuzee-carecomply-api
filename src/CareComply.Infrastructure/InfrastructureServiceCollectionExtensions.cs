@@ -107,6 +107,7 @@ public static class InfrastructureServiceCollectionExtensions
                 "MFA required permissions must be non-empty canonical permissions.")
             .ValidateOnStart();
         services.AddScoped<DevelopmentIdentityInitializer>();
+        services.AddScoped<DevelopmentWorkforceInitializer>();
         services.AddSingleton<LoginPasswordTimingProtector>();
         services.AddScoped<IIdentityAuthentication, IdentityAuthenticationService>();
         services.AddScoped<IPasswordRecovery, IdentityPasswordRecovery>();
@@ -132,6 +133,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<INavigationAdministration, EfNavigationAdministration>();
         services.AddScoped<IClientDirectory, EfClientDirectory>();
         services.AddScoped<IClientAdministration, EfClientAdministration>();
+        services.AddScoped<IClientTodoStore, EfClientTodoStore>();
+        services.AddScoped<IClientCaregiverStore, EfClientCaregiverStore>();
+        services.AddScoped<IClientHospitalizationStore, EfClientHospitalizationStore>();
         services.AddScoped<IClientSensitiveData, DataProtectionClientSensitiveData>();
         services.AddScoped<IAuditExecution, EfAuditExecution>();
 
