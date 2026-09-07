@@ -296,7 +296,11 @@ public sealed class PermissionIntegrationTests(SqlServerApiFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
-        var role = new ApplicationRole { Name = $"TestRole-{Guid.NewGuid():N}" };
+        var role = new ApplicationRole
+        {
+            CompanyId = SqlServerApiFactory.DefaultCompanyId,
+            Name = $"TestRole-{Guid.NewGuid():N}"
+        };
         var result = await roleManager.CreateAsync(role);
         Assert.True(result.Succeeded, string.Join(", ", result.Errors.Select(error => error.Code)));
         return role;

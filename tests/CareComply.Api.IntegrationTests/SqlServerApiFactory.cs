@@ -22,7 +22,8 @@ namespace CareComply.Api.IntegrationTests;
 
 public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private static readonly Guid DefaultCompanyId = Guid.Parse("01990000-0000-7000-8000-000000000001");
+    internal static readonly Guid DefaultCompanyId =
+    Guid.Parse("01990000-0000-7000-8000-000000000001");
     private const string SqlServerImage =
         "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
 
@@ -120,7 +121,11 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
         var context = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
         var user = await userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException("The expected test user does not exist.");
-        var role = new ApplicationRole { Name = $"MfaTest-{Guid.NewGuid():N}" };
+        var role = new ApplicationRole
+        {
+            CompanyId = DefaultCompanyId,
+            Name = $"MfaTest-{Guid.NewGuid():N}"
+        };
         Assert.True((await roleManager.CreateAsync(role)).Succeeded);
         Assert.True((await userManager.AddToRoleAsync(user, role.Name!)).Succeeded);
         var permission = await context.Set<Permission>()
