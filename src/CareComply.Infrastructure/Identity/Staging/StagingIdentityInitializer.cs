@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using CareComply.Infrastructure.Tenancy;
 
 namespace CareComply.Infrastructure.Identity.Staging;
 
@@ -111,6 +112,7 @@ public sealed class StagingIdentityInitializer(
                 role = new ApplicationRole
                 {
                     Name = fixture.Name,
+                    CompanyId = TenantDefaults.DefaultCompanyId,
                 };
 
                 EnsureSucceeded(
@@ -185,6 +187,8 @@ public sealed class StagingIdentityInitializer(
 
             user = new ApplicationUser
             {
+                CompanyId = TenantDefaults.DefaultCompanyId,
+                IsPlatformAdministrator = fixture.RoleName == "System Administrator",
                 Email = fixture.Email,
                 UserName = fixture.Email,
                 EmailConfirmed = true,

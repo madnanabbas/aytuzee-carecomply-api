@@ -10,6 +10,7 @@ public interface IRoleManagement
         CancellationToken cancellationToken);
 
     Task<RoleMutationResult> CreateAsync(
+        Guid? companyId,
         string name,
         string? description,
         IReadOnlyList<int> permissionIds,
@@ -31,6 +32,8 @@ public interface IRoleManagement
 
 public sealed record RoleManagementListItem(
     Guid Id,
+    Guid CompanyId,
+    string CompanyName,
     string Name,
     string Description,
     int AssignedUserCount,
@@ -39,6 +42,8 @@ public sealed record RoleManagementListItem(
 
 public sealed record RoleManagementDetails(
     Guid Id,
+    Guid CompanyId,
+    string CompanyName,
     string Name,
     string Description,
     IReadOnlyList<int> PermissionIds,

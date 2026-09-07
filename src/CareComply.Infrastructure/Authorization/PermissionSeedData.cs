@@ -70,6 +70,7 @@ internal static class PermissionSeedData
             new(74, Permissions.ClientForm.View), new(75, Permissions.ClientForm.Create), new(76, Permissions.ClientForm.Edit),
             new(77, Permissions.ClientEmailLog.View),
             new(78, Permissions.ClientEmployeeService.View), new(79, Permissions.ClientEmployeeService.Create), new(80, Permissions.ClientEmployeeService.Edit),
+            new(81, Permissions.Company.View), new(82, Permissions.Company.Create), new(83, Permissions.Company.Edit), new(84, Permissions.Company.Delete),
         ]);
 }
 

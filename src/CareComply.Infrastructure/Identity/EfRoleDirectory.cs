@@ -3,18 +3,23 @@ using CareComply.Infrastructure.Authorization;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class EfRoleDirectory(
     CareComplyDbContext context,
-    IOptions<MfaPolicyOptions> mfaOptions) : IRoleDirectory
+    IOptions<MfaPolicyOptions> mfaOptions,
+    ITenantScopeAccessor tenantAccessor) : IRoleDirectory
 {
     public async Task<IReadOnlyList<RoleDirectoryItem>> ListAsync(
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return [];
         var roles = await context.Roles
             .AsNoTracking()
+            .Where(role => tenant.IsPlatformAdministrator || role.CompanyId == tenant.CompanyId)
             .OrderBy(role => role.Name)
             .Select(role => new RoleProjection(role.Id, role.Name ?? string.Empty))
             .ToArrayAsync(cancellationToken);

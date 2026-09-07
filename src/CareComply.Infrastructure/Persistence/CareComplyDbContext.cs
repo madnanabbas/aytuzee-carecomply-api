@@ -1,4 +1,5 @@
 using CareComply.Domain.Clients;
+using CareComply.Domain.Companies;
 using CareComply.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ public sealed class CareComplyDbContext
     }
 
 
+    public DbSet<Company> Companies => Set<Company>();
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<ClientAdditionalProfile> ClientAdditionalProfiles => Set<ClientAdditionalProfile>();
     public DbSet<ClientService> ClientServices => Set<ClientService>();

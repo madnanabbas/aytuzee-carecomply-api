@@ -3,20 +3,28 @@ using CareComply.Application.Abstractions.Clients;
 using CareComply.Domain.Clients;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Clients;
 
-internal sealed class EfClientTodoStore(CareComplyDbContext context) : IClientTodoStore
+internal sealed class EfClientTodoStore(
+    CareComplyDbContext context,
+    ITenantScopeAccessor tenantScopeAccessor) : IClientTodoStore
 {
-    public async Task<IReadOnlyList<ClientTodoAssignee>> ListActiveAssigneesAsync(CancellationToken cancellationToken) =>
-        await context.Users.AsNoTracking().Where(x => x.IsActive && x.IsEmployee)
+    public async Task<IReadOnlyList<ClientTodoAssignee>> ListActiveAssigneesAsync(CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return [];
+        return await context.Users.AsNoTracking().Where(x => x.IsActive && x.IsEmployee
+                && (tenant.IsPlatformAdministrator || x.CompanyId == tenant.CompanyId))
             .OrderBy(x => x.LastName).ThenBy(x => x.FirstName)
             .Select(x => new ClientTodoAssignee(x.Id, (x.FirstName + " " + x.LastName).Trim()))
             .ToArrayAsync(cancellationToken);
+    }
 
     public async Task<ClientTodoList?> ListForClientAsync(Guid clientId, DateOnly today, CancellationToken cancellationToken)
     {
-        if (!await context.Clients.AsNoTracking().AnyAsync(x => x.Id == clientId, cancellationToken)) return null;
+        if (await AuthorizedClientCompanyId(clientId, cancellationToken) is null) return null;
         var rows = await (from todo in context.ClientTodos.AsNoTracking()
                           where todo.ClientId == clientId
                           join assigned in context.Users.AsNoTracking() on todo.AssignedToUserId equals assigned.Id
@@ -29,8 +37,9 @@ internal sealed class EfClientTodoStore(CareComplyDbContext context) : IClientTo
 
     public async Task<ClientTodoMutationResult> CreateAsync(ClientTodoCreateRequest request, CancellationToken cancellationToken)
     {
-        if (!await context.Clients.AnyAsync(x => x.Id == request.ClientId, cancellationToken)) return new(ClientTodoMutationStatus.ClientNotFound);
-        if (!await ActiveUser(request.AssignedToUserId, cancellationToken)) return new(ClientTodoMutationStatus.InvalidAssignee);
+        var companyId = await AuthorizedClientCompanyId(request.ClientId, cancellationToken);
+        if (companyId is null) return new(ClientTodoMutationStatus.ClientNotFound);
+        if (!await ActiveUser(request.AssignedToUserId, companyId.Value, cancellationToken)) return new(ClientTodoMutationStatus.InvalidAssignee);
         var todo = ClientTodo.Create(Guid.CreateVersion7(), request.ClientId, request.Title, request.Description,
             request.AssignedToUserId, request.DueDate, request.Priority, request.ActorUserId, request.NowUtc);
         context.ClientTodos.Add(todo);
@@ -40,10 +49,12 @@ internal sealed class EfClientTodoStore(CareComplyDbContext context) : IClientTo
 
     public async Task<ClientTodoMutationResult> UpdateAsync(ClientTodoUpdateRequest request, CancellationToken cancellationToken)
     {
+        var companyId = await AuthorizedClientCompanyId(request.ClientId, cancellationToken);
+        if (companyId is null) return new(ClientTodoMutationStatus.ClientNotFound);
         var todo = await context.ClientTodos.SingleOrDefaultAsync(x => x.Id == request.TodoId && x.ClientId == request.ClientId, cancellationToken);
         if (todo is null) return await Missing(request.ClientId, cancellationToken);
         if (!VersionMatches(todo.RowVersion, request.EditorVersion)) return new(ClientTodoMutationStatus.Conflict);
-        if (!await ActiveUser(request.AssignedToUserId, cancellationToken)) return new(ClientTodoMutationStatus.InvalidAssignee);
+        if (!await ActiveUser(request.AssignedToUserId, companyId.Value, cancellationToken)) return new(ClientTodoMutationStatus.InvalidAssignee);
         try { todo.UpdateDetails(request.Title, request.Description, request.AssignedToUserId, request.DueDate, request.Priority, request.NowUtc); }
         catch (InvalidOperationException) { return new(ClientTodoMutationStatus.InvalidState); }
         return await Save(todo, request.Today, cancellationToken);
@@ -51,6 +62,7 @@ internal sealed class EfClientTodoStore(CareComplyDbContext context) : IClientTo
 
     public async Task<ClientTodoMutationResult> TransitionAsync(ClientTodoTransitionStoreRequest request, CancellationToken cancellationToken)
     {
+        if (await AuthorizedClientCompanyId(request.ClientId, cancellationToken) is null) return new(ClientTodoMutationStatus.ClientNotFound);
         var todo = await context.ClientTodos.SingleOrDefaultAsync(x => x.Id == request.TodoId && x.ClientId == request.ClientId, cancellationToken);
         if (todo is null) return await Missing(request.ClientId, cancellationToken);
         if (!VersionMatches(todo.RowVersion, request.EditorVersion)) return new(ClientTodoMutationStatus.Conflict);
@@ -77,8 +89,17 @@ internal sealed class EfClientTodoStore(CareComplyDbContext context) : IClientTo
     private async Task<ClientTodoMutationResult> Missing(Guid clientId, CancellationToken ct) =>
         await context.Clients.AsNoTracking().AnyAsync(x => x.Id == clientId, ct)
             ? new(ClientTodoMutationStatus.TodoNotFound) : new(ClientTodoMutationStatus.ClientNotFound);
-    private Task<bool> ActiveUser(Guid id, CancellationToken ct) => context.Users.AsNoTracking()
-        .AnyAsync(x => x.Id == id && x.IsActive && x.IsEmployee, ct);
+    private Task<bool> ActiveUser(Guid id, Guid companyId, CancellationToken ct) => context.Users.AsNoTracking()
+        .AnyAsync(x => x.Id == id && x.CompanyId == companyId && x.IsActive && x.IsEmployee, ct);
+    private async Task<Guid?> AuthorizedClientCompanyId(Guid clientId, CancellationToken ct)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(ct);
+        if (tenant is null) return null;
+        return await context.Clients.AsNoTracking()
+            .Where(x => x.Id == clientId && (tenant.IsPlatformAdministrator || x.CompanyId == tenant.CompanyId))
+            .Select(x => (Guid?)x.CompanyId)
+            .SingleOrDefaultAsync(ct);
+    }
     private async Task<ClientTodoItem> MapWithNames(ClientTodo todo, DateOnly today, CancellationToken ct)
     {
         var names = await context.Users.AsNoTracking().Where(x => x.Id == todo.AssignedToUserId || x.Id == todo.CreatedByUserId)

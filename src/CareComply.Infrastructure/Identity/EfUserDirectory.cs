@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using CareComply.Infrastructure.Authorization;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class EfUserDirectory(
     CareComplyDbContext context,
+    ITenantScopeAccessor tenantScopeAccessor,
     IMfaRequirementEvaluator mfaRequirementEvaluator,
     IOptions<MfaPolicyOptions> mfaOptions) : IUserDirectory
 {
@@ -16,9 +18,13 @@ internal sealed class EfUserDirectory(
         Guid userId,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return null;
+
         var user = await context.Users
             .AsNoTracking()
-            .Where(candidate => candidate.Id == userId)
+            .Where(candidate => candidate.Id == userId
+                && (tenant.IsPlatformAdministrator || candidate.CompanyId == tenant.CompanyId))
             .Select(candidate => new UserDetailsProjection(
                 candidate.Id,
                 candidate.FirstName,
@@ -54,7 +60,14 @@ internal sealed class EfUserDirectory(
         UserDirectoryRequest request,
         CancellationToken cancellationToken)
     {
-        var users = context.Users.AsNoTracking();
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return new([], [], request.PageNumber, request.PageSize, 0);
+
+        IQueryable<ApplicationUser> users = context.Users.AsNoTracking();
+        if (!tenant.IsPlatformAdministrator)
+        {
+            users = users.Where(user => user.CompanyId == tenant.CompanyId);
+        }
         var mfaRequiredUserIds =
             from userRole in context.Set<IdentityUserRole<Guid>>().AsNoTracking()
             join rolePermission in context.Set<RolePermission>().AsNoTracking()

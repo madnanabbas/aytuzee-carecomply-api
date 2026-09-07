@@ -2,6 +2,7 @@ using CareComply.Application.Abstractions.Clients;
 using CareComply.Domain.Clients;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Clients;
 
@@ -9,15 +10,19 @@ internal sealed class EfClientAdministration(
     CareComplyDbContext context,
     IClientDirectory directory,
     IClientSensitiveData sensitiveData,
+    ITenantScopeAccessor tenantScopeAccessor,
     TimeProvider timeProvider) : IClientAdministration
 {
     public async Task<ClientAdministrationResult> CreateAsync(
         ClientCreateRequest request,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+
         var pmiNumber = NormalizeRequired(request.Identity.PmiNumber);
         if (await context.Clients.AsNoTracking().AnyAsync(
-                client => client.PmiNumber == pmiNumber,
+                client => client.CompanyId == tenant.CompanyId && client.PmiNumber == pmiNumber,
                 cancellationToken))
         {
             return Failed(ClientAdministrationStatus.DuplicatePmi);
@@ -30,6 +35,7 @@ internal sealed class EfClientAdministration(
         {
             var client = Client.Create(
                 clientId,
+                tenant.CompanyId,
                 request.Identity.FirstName,
                 request.Identity.MiddleName,
                 request.Identity.LastName,
@@ -126,8 +132,12 @@ internal sealed class EfClientAdministration(
         ClientUpdateRequest request,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+
         var client = await context.Clients.SingleOrDefaultAsync(
-            item => item.Id == request.ClientId,
+            item => item.Id == request.ClientId
+                && (tenant.IsPlatformAdministrator || item.CompanyId == tenant.CompanyId),
             cancellationToken);
         if (client is null)
         {
@@ -142,7 +152,9 @@ internal sealed class EfClientAdministration(
         var pmiNumber = NormalizeRequired(request.Identity.PmiNumber);
         if (!string.Equals(client.PmiNumber, pmiNumber, StringComparison.OrdinalIgnoreCase)
             && await context.Clients.AsNoTracking().AnyAsync(
-                item => item.Id != request.ClientId && item.PmiNumber == pmiNumber,
+                item => item.Id != request.ClientId
+                    && item.CompanyId == client.CompanyId
+                    && item.PmiNumber == pmiNumber,
                 cancellationToken))
         {
             return Failed(ClientAdministrationStatus.DuplicatePmi);
@@ -341,8 +353,12 @@ internal sealed class EfClientAdministration(
         ClientStatusChangeRequest request,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+
         var client = await context.Clients.SingleOrDefaultAsync(
-            item => item.Id == request.ClientId,
+            item => item.Id == request.ClientId
+                && (tenant.IsPlatformAdministrator || item.CompanyId == tenant.CompanyId),
             cancellationToken);
         if (client is null)
         {

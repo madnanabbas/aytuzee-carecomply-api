@@ -2,6 +2,8 @@ namespace CareComply.Api.Contracts.AccessManagement;
 
 public sealed record ManagedRoleListItemResponse(
     Guid Id,
+    Guid CompanyId,
+    string CompanyName,
     string Name,
     string Description,
     int AssignedUsers,
@@ -10,6 +12,8 @@ public sealed record ManagedRoleListItemResponse(
 
 public sealed record ManagedRoleDetailsResponse(
     Guid Id,
+    Guid CompanyId,
+    string CompanyName,
     string Name,
     string Description,
     IReadOnlyList<int> PermissionIds,
@@ -33,6 +37,7 @@ public sealed record RolePermissionCatalogFeatureResponse(
 public sealed record RolePermissionCatalogPermissionResponse(int Id, string Code, string Action);
 
 public sealed record CreateManagedRoleRequest(
+    Guid? CompanyId,
     string Name,
     string? Description,
     IReadOnlyList<int>? PermissionIds);

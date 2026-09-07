@@ -13,6 +13,8 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
         entity.ToTable("Users");
         entity.Property(user => user.FirstName).HasMaxLength(100).IsRequired();
         entity.Property(user => user.LastName).HasMaxLength(100).IsRequired();
+        entity.Property(user => user.CompanyId).IsRequired();
+        entity.Property(user => user.IsPlatformAdministrator).HasDefaultValue(false).IsRequired();
         entity.Property(user => user.IsActive).HasDefaultValue(true).IsRequired();
         entity.Property(user => user.IsEmployee).HasDefaultValue(false).IsRequired();
         entity.Property(user => user.JobTitle).HasMaxLength(100).IsRequired();
@@ -39,6 +41,8 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
         entity.HasIndex(user => user.NormalizedEmail)
             .HasDatabaseName("UX_Users_NormalizedEmail")
             .IsUnique();
+        entity.HasIndex(user => new { user.CompanyId, user.IsActive })
+            .HasDatabaseName("IX_Users_CompanyId_IsActive");
     }
 }
 
@@ -50,6 +54,10 @@ internal sealed class ApplicationRoleConfiguration : IEntityTypeConfiguration<Ap
         entity.Property(role => role.Name).HasMaxLength(256).IsRequired();
         entity.Property(role => role.NormalizedName).HasMaxLength(256).IsRequired();
         entity.Property(role => role.ConcurrencyStamp).HasMaxLength(64);
+        entity.Property(role => role.CompanyId).IsRequired();
+        entity.HasOne<CareComply.Domain.Companies.Company>().WithMany().HasForeignKey(role => role.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Roles_Companies_CompanyId");
+        entity.HasIndex(role => new { role.CompanyId, role.Name }).HasDatabaseName("IX_Roles_CompanyId_Name");
         entity.HasIndex(role => role.NormalizedName)
             .HasDatabaseName("UX_Roles_NormalizedName")
             .IsUnique();

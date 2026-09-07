@@ -8,4 +8,6 @@ public sealed class ApplicationRole : IdentityRole<Guid>
     {
         Id = Guid.CreateVersion7();
     }
+
+    public Guid CompanyId { get; set; }
 }

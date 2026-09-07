@@ -2,11 +2,13 @@ using CareComply.Application.Abstractions.Identity;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using CareComply.Infrastructure.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityUserRoleAdministration(
     CareComplyDbContext context,
+    TenantUserAccess tenantUserAccess,
     IUserDirectory userDirectory,
     UserManager<ApplicationUser> userManager,
     TimeProvider timeProvider) : IUserRoleAdministration
@@ -17,6 +19,11 @@ internal sealed class IdentityUserRoleAdministration(
         string editorVersion,
         CancellationToken cancellationToken)
     {
+        if (!await tenantUserAccess.CanManageAsync(userId, cancellationToken))
+        {
+            return Result(UserRoleUpdateStatus.NotFound);
+        }
+
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
         {
@@ -30,7 +37,7 @@ internal sealed class IdentityUserRoleAdministration(
 
         var requestedRoleIds = roleIds.ToHashSet();
         var requestedRoles = await context.Roles
-            .Where(role => requestedRoleIds.Contains(role.Id))
+            .Where(role => requestedRoleIds.Contains(role.Id) && role.CompanyId == user.CompanyId)
             .Select(role => new RoleProjection(role.Id, role.Name ?? string.Empty))
             .ToArrayAsync(cancellationToken);
         if (requestedRoles.Length != requestedRoleIds.Count

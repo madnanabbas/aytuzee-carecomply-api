@@ -3,15 +3,19 @@ using CareComply.Application.Abstractions.Clients;
 using CareComply.Domain.Clients;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Clients;
 
-internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimeProvider timeProvider) : IClientCaregiverStore
+internal sealed class EfClientCaregiverStore(
+    CareComplyDbContext context,
+    ITenantScopeAccessor tenantScopeAccessor,
+    TimeProvider timeProvider) : IClientCaregiverStore
 {
     private DateOnly Today => DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
     public async Task<ClientCaregiverList?> ListAsync(Guid clientId, CancellationToken ct)
     {
-        if (!await context.Clients.AsNoTracking().AnyAsync(x => x.Id == clientId, ct)) return null;
+        if (await AuthorizedClientCompanyId(clientId, ct) is null) return null;
         var assignments = await context.ClientCaregivers.AsNoTracking().Where(x => x.ClientId == clientId)
             .OrderBy(x => x.Status).ThenBy(x => x.Type).ThenBy(x => x.StartDate).ToArrayAsync(ct);
         return new(await MapMany(assignments, ct));
@@ -19,7 +23,10 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
 
     public async Task<IReadOnlyList<ClientCaregiverCandidate>> CandidatesAsync(CancellationToken ct)
     {
-        var users = await context.Users.AsNoTracking().Where(x => x.IsActive && x.IsEmployee)
+        var tenant = await tenantScopeAccessor.GetAsync(ct);
+        if (tenant is null) return [];
+        var users = await context.Users.AsNoTracking().Where(x => x.IsActive && x.IsEmployee
+                && (tenant.IsPlatformAdministrator || x.CompanyId == tenant.CompanyId))
             .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToArrayAsync(ct);
         return users.Select(x => new ClientCaregiverCandidate(x.Id, Name(x.FirstName, x.LastName),
             Title(x), x.PhoneNumber ?? string.Empty, x.Email ?? string.Empty)).ToArray();
@@ -27,8 +34,9 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
 
     public async Task<ClientCaregiverMutation> CreateAsync(ClientCaregiverCreate request, CancellationToken ct)
     {
-        if (!await context.Clients.AnyAsync(x => x.Id == request.ClientId, ct)) return new(ClientCaregiverMutationStatus.ClientNotFound);
-        if (!await context.Users.AnyAsync(x => x.Id == request.UserId && x.IsActive && x.IsEmployee, ct)) return new(ClientCaregiverMutationStatus.InvalidCaregiver);
+        var companyId = await AuthorizedClientCompanyId(request.ClientId, ct);
+        if (companyId is null) return new(ClientCaregiverMutationStatus.ClientNotFound);
+        if (!await context.Users.AnyAsync(x => x.Id == request.UserId && x.CompanyId == companyId && x.IsActive && x.IsEmployee, ct)) return new(ClientCaregiverMutationStatus.InvalidCaregiver);
         if (await context.ClientCaregivers.AnyAsync(x => x.ClientId == request.ClientId && x.UserId == request.UserId && x.Status == ClientCaregiverStatus.Active && (!x.EndDate.HasValue || x.EndDate >= Today), ct))
             return new(ClientCaregiverMutationStatus.DuplicateActiveAssignment);
         if (request.Type == ClientCaregiverType.Primary && !request.EndDate.HasValue && await HasOtherPrimary(request.ClientId, null, ct))
@@ -43,6 +51,7 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
 
     public async Task<ClientCaregiverMutation> UpdateAsync(ClientCaregiverUpdate request, CancellationToken ct)
     {
+        if (await AuthorizedClientCompanyId(request.ClientId, ct) is null) return new(ClientCaregiverMutationStatus.ClientNotFound);
         var entity = await context.ClientCaregivers.SingleOrDefaultAsync(x => x.Id == request.AssignmentId && x.ClientId == request.ClientId, ct);
         if (entity is null) return await Missing(request.ClientId, ct);
         if (!VersionMatches(entity.RowVersion, request.EditorVersion)) return new(ClientCaregiverMutationStatus.Conflict);
@@ -55,6 +64,7 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
 
     public async Task<ClientCaregiverMutation> EndAsync(ClientCaregiverEnd request, CancellationToken ct)
     {
+        if (await AuthorizedClientCompanyId(request.ClientId, ct) is null) return new(ClientCaregiverMutationStatus.ClientNotFound);
         var entity = await context.ClientCaregivers.SingleOrDefaultAsync(x => x.Id == request.AssignmentId && x.ClientId == request.ClientId, ct);
         if (entity is null) return await Missing(request.ClientId, ct);
         if (!VersionMatches(entity.RowVersion, request.EditorVersion)) return new(ClientCaregiverMutationStatus.Conflict);
@@ -65,6 +75,15 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
 
     private Task<bool> HasOtherPrimary(Guid clientId, Guid? exceptId, CancellationToken ct) => context.ClientCaregivers.AsNoTracking()
         .AnyAsync(x => x.ClientId == clientId && x.Id != exceptId && x.Type == ClientCaregiverType.Primary && x.Status == ClientCaregiverStatus.Active && (!x.EndDate.HasValue || x.EndDate >= Today), ct);
+    private async Task<Guid?> AuthorizedClientCompanyId(Guid clientId, CancellationToken ct)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(ct);
+        if (tenant is null) return null;
+        return await context.Clients.AsNoTracking()
+            .Where(x => x.Id == clientId && (tenant.IsPlatformAdministrator || x.CompanyId == tenant.CompanyId))
+            .Select(x => (Guid?)x.CompanyId)
+            .SingleOrDefaultAsync(ct);
+    }
     private async Task<ClientCaregiverMutation> Save(ClientCaregiver entity, CancellationToken ct)
     { try { await context.SaveChangesAsync(ct); } catch (DbUpdateConcurrencyException) { return new(ClientCaregiverMutationStatus.Conflict); } catch (DbUpdateException) { return new(ClientCaregiverMutationStatus.Conflict); } return new(ClientCaregiverMutationStatus.Succeeded, await Map(entity, ct)); }
     private async Task<ClientCaregiverMutation> Missing(Guid clientId, CancellationToken ct) => await context.Clients.AsNoTracking().AnyAsync(x => x.Id == clientId, ct)

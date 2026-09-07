@@ -26,6 +26,7 @@ public sealed class Client
 
     private Client(
         Guid id,
+        Guid companyId,
         string firstName,
         string? middleName,
         string lastName,
@@ -43,7 +44,13 @@ public sealed class Client
             throw new ArgumentException("A client identifier is required.", nameof(id));
         }
 
+        if (companyId == Guid.Empty)
+        {
+            throw new ArgumentException("A company identifier is required.", nameof(companyId));
+        }
+
         Id = id;
+        CompanyId = companyId;
         SetIdentity(firstName, middleName, lastName, preferredName, dateOfBirth, gender, pmiNumber);
         SetIntakeAndStatus(intakeDate, socDate, status, null, null);
         CreatedAtUtc = EnsureUtc(createdAtUtc, nameof(createdAtUtc));
@@ -51,6 +58,7 @@ public sealed class Client
     }
 
     public Guid Id { get; private set; }
+    public Guid CompanyId { get; private set; }
     public string FirstName { get; private set; } = string.Empty;
     public string MiddleName { get; private set; } = string.Empty;
     public string LastName { get; private set; } = string.Empty;
@@ -89,6 +97,7 @@ public sealed class Client
 
     public static Client Create(
         Guid id,
+        Guid companyId,
         string firstName,
         string? middleName,
         string lastName,
@@ -100,7 +109,7 @@ public sealed class Client
         DateOnly? intakeDate,
         ClientStatus status,
         DateTimeOffset createdAtUtc) =>
-        new(id, firstName, middleName, lastName, preferredName, dateOfBirth, gender, pmiNumber,
+        new(id, companyId, firstName, middleName, lastName, preferredName, dateOfBirth, gender, pmiNumber,
             socDate, intakeDate, status, createdAtUtc);
 
     public void ChangeIdentity(

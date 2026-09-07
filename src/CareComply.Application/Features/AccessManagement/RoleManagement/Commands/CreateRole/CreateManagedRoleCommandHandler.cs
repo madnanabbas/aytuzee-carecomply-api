@@ -8,6 +8,7 @@ public sealed class CreateManagedRoleCommandHandler(IRoleManagement roles)
 {
     public async ValueTask<CreateManagedRoleResult> Handle(CreateManagedRoleCommand command, CancellationToken cancellationToken) =>
         CreateManagedRoleResult.Succeeded(await roles.CreateAsync(
+            command.CompanyId,
             command.Name,
             command.Description,
             command.PermissionIds,

@@ -22,6 +22,7 @@ namespace CareComply.Api.IntegrationTests;
 
 public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    private static readonly Guid DefaultCompanyId = Guid.Parse("01990000-0000-7000-8000-000000000001");
     private const string SqlServerImage =
         "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
 
@@ -60,6 +61,7 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
         var now = DateTimeOffset.UtcNow;
         var user = new ApplicationUser
         {
+            CompanyId = DefaultCompanyId,
             Email = email,
             UserName = email,
             EmailConfirmed = emailConfirmed,

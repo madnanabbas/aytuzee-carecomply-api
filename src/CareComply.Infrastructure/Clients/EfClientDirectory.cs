@@ -2,16 +2,26 @@ using CareComply.Application.Abstractions.Clients;
 using CareComply.Domain.Clients;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Clients;
 
-internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDirectory
+internal sealed class EfClientDirectory(
+    CareComplyDbContext context,
+    ITenantScopeAccessor tenantScopeAccessor) : IClientDirectory
 {
     public async Task<ClientDirectoryPage> ListAsync(
         ClientDirectoryRequest request,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return new([], request.PageNumber, request.PageSize, 0);
+
         var clients = context.Clients.AsNoTracking().AsQueryable();
+        if (!tenant.IsPlatformAdministrator)
+        {
+            clients = clients.Where(client => client.CompanyId == tenant.CompanyId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -135,8 +145,12 @@ internal sealed class EfClientDirectory(CareComplyDbContext context) : IClientDi
         Guid clientId,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return null;
+
         var client = await context.Clients.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == clientId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == clientId
+                && (tenant.IsPlatformAdministrator || item.CompanyId == tenant.CompanyId), cancellationToken);
         if (client is null)
         {
             return null;

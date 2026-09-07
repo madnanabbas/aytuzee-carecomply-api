@@ -82,6 +82,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Country")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -227,12 +230,12 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("PK_Clients");
 
-                    b.HasIndex("PmiNumber")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Clients_PmiNumber");
-
                     b.HasIndex("SocDate")
                         .HasDatabaseName("IX_Clients_SocDate");
+
+                    b.HasIndex("CompanyId", "PmiNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Clients_PmiNumber");
 
                     b.HasIndex("Location", "Status")
                         .HasDatabaseName("IX_Clients_Location_Status");
@@ -719,6 +722,63 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CareComply.Domain.Companies.Company", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_Companies");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Companies_Code");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Companies_Name");
+
+                    b.ToTable("Companies", "dbo");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("01990000-0000-7000-8000-000000000001"),
+                            Code = "AYTUZEE-DEMO",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 7, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Name = "Aytuzee Demo Company",
+                            UpdatedAtUtc = new DateTimeOffset(new DateTime(2026, 9, 7, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
+                });
+
             modelBuilder.Entity("CareComply.Domain.Navigation.NavigationFeature", b =>
                 {
                     b.Property<int>("Id")
@@ -949,6 +1009,17 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                             ParentFeatureId = 11,
                             Route = "/access-control/audit-logs",
                             SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = 16,
+                            IconKey = "companies",
+                            IsActive = true,
+                            Key = "companies",
+                            ModuleId = 5,
+                            Name = "Companies",
+                            Route = "/access-control/companies",
+                            SortOrder = 5
                         });
                 });
 
@@ -1093,6 +1164,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             FeatureId = 15,
                             PermissionId = 48
+                        },
+                        new
+                        {
+                            FeatureId = 16,
+                            PermissionId = 81
                         });
                 });
 
@@ -1664,6 +1740,26 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             Id = 80,
                             Name = "ClientEmployeeService.Edit"
+                        },
+                        new
+                        {
+                            Id = 81,
+                            Name = "Company.View"
+                        },
+                        new
+                        {
+                            Id = 82,
+                            Name = "Company.Create"
+                        },
+                        new
+                        {
+                            Id = 83,
+                            Name = "Company.Edit"
+                        },
+                        new
+                        {
+                            Id = 84,
+                            Name = "Company.Delete"
                         });
                 });
 
@@ -1690,6 +1786,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasMaxLength(64)
@@ -1711,6 +1810,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_Roles_NormalizedName");
 
+                    b.HasIndex("CompanyId", "Name")
+                        .HasDatabaseName("IX_Roles_CompanyId_Name");
+
                     b.ToTable("Roles", "dbo");
                 });
 
@@ -1722,6 +1824,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -1750,6 +1855,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(true);
 
                     b.Property<bool>("IsEmployee")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsPlatformAdministrator")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
@@ -1830,6 +1940,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
                         .HasDatabaseName("UX_Users_NormalizedUserName");
+
+                    b.HasIndex("CompanyId", "IsActive")
+                        .HasDatabaseName("IX_Users_CompanyId_IsActive");
 
                     b.ToTable("Users", "dbo");
                 });
@@ -1972,6 +2085,16 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_RoleProfiles_Roles_RoleId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.Client", b =>
+                {
+                    b.HasOne("CareComply.Domain.Companies.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Clients_Companies_CompanyId");
                 });
 
             modelBuilder.Entity("CareComply.Domain.Clients.ClientAdditionalProfile", b =>
@@ -2135,6 +2258,26 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_RolePermissions_Roles_RoleId");
+                });
+
+            modelBuilder.Entity("CareComply.Infrastructure.Identity.ApplicationRole", b =>
+                {
+                    b.HasOne("CareComply.Domain.Companies.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Roles_Companies_CompanyId");
+                });
+
+            modelBuilder.Entity("CareComply.Infrastructure.Identity.ApplicationUser", b =>
+                {
+                    b.HasOne("CareComply.Domain.Companies.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Users_Companies_CompanyId");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>

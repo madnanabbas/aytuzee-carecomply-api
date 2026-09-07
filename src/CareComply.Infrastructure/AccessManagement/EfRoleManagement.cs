@@ -5,6 +5,7 @@ using CareComply.Domain.Navigation;
 using CareComply.Infrastructure.Authorization;
 using CareComply.Infrastructure.Identity;
 using CareComply.Infrastructure.Persistence;
+using CareComply.Application.Abstractions.Tenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,14 +14,18 @@ namespace CareComply.Infrastructure.AccessManagement;
 internal sealed class EfRoleManagement(
     CareComplyDbContext context,
     RoleManager<ApplicationRole> roleManager,
-    UserManager<ApplicationUser> userManager) : IRoleManagement
+    UserManager<ApplicationUser> userManager,
+    ITenantScopeAccessor tenantAccessor) : IRoleManagement
 {
     public async Task<IReadOnlyList<RoleManagementListItem>> ListAsync(CancellationToken cancellationToken)
     {
-        var roles = await context.Roles
-            .AsNoTracking()
-            .OrderBy(role => role.Name)
-            .Select(role => new RoleRow(role.Id, role.Name ?? string.Empty, role.ConcurrencyStamp ?? string.Empty))
+        var tenant = await tenantAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return [];
+        var roles = await (from role in context.Roles.AsNoTracking()
+            join company in context.Companies.AsNoTracking() on role.CompanyId equals company.Id
+            where tenant.IsPlatformAdministrator || role.CompanyId == tenant.CompanyId
+            orderby company.Name, role.Name
+            select new RoleRow(role.Id, role.CompanyId, company.Name, role.Name ?? string.Empty, role.ConcurrencyStamp ?? string.Empty))
             .ToArrayAsync(cancellationToken);
         if (roles.Length == 0)
         {
@@ -47,6 +52,8 @@ internal sealed class EfRoleManagement(
 
         return roles.Select(role => new RoleManagementListItem(
             role.Id,
+            role.CompanyId,
+            role.CompanyName,
             role.Name,
             descriptions.GetValueOrDefault(role.Id) ?? string.Empty,
             userCounts.GetValueOrDefault(role.Id),
@@ -56,10 +63,12 @@ internal sealed class EfRoleManagement(
 
     public async Task<RoleManagementDetails?> GetAsync(Guid roleId, CancellationToken cancellationToken)
     {
-        var role = await context.Roles
-            .AsNoTracking()
-            .Where(value => value.Id == roleId)
-            .Select(value => new RoleRow(value.Id, value.Name ?? string.Empty, value.ConcurrencyStamp ?? string.Empty))
+        var tenant = await tenantAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return null;
+        var role = await (from value in context.Roles.AsNoTracking()
+            join company in context.Companies.AsNoTracking() on value.CompanyId equals company.Id
+            where value.Id == roleId && (tenant.IsPlatformAdministrator || value.CompanyId == tenant.CompanyId)
+            select new RoleRow(value.Id, value.CompanyId, company.Name, value.Name ?? string.Empty, value.ConcurrencyStamp ?? string.Empty))
             .SingleOrDefaultAsync(cancellationToken);
         return role is null ? null : await BuildDetailsAsync(role, cancellationToken);
     }
@@ -111,6 +120,7 @@ internal sealed class EfRoleManagement(
     }
 
     public async Task<RoleMutationResult> CreateAsync(
+        Guid? companyId,
         string name,
         string? description,
         IReadOnlyList<int> permissionIds,
@@ -122,7 +132,15 @@ internal sealed class EfRoleManagement(
             return new(RoleMutationStatus.PermissionNotFound, null);
         }
 
-        var applicationRole = new ApplicationRole { Name = name.Trim() };
+        var tenant = await tenantAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return new(RoleMutationStatus.Unavailable, null);
+        var targetCompanyId = tenant.IsPlatformAdministrator ? companyId : tenant.CompanyId;
+        if (targetCompanyId is null || (!tenant.IsPlatformAdministrator && companyId is not null && companyId != tenant.CompanyId)
+            || !await context.Companies.AnyAsync(x => x.Id == targetCompanyId && x.IsActive, cancellationToken))
+        {
+            return new(RoleMutationStatus.Unavailable, null);
+        }
+        var applicationRole = new ApplicationRole { Name = name.Trim(), CompanyId = targetCompanyId.Value };
         var definition = RoleDefinition.Create(applicationRole.Id, name, description, permissionValidation.PermissionIds);
         var createResult = await roleManager.CreateAsync(applicationRole);
         if (!createResult.Succeeded)
@@ -151,7 +169,7 @@ internal sealed class EfRoleManagement(
         CancellationToken cancellationToken)
     {
         var role = await roleManager.FindByIdAsync(roleId.ToString());
-        if (role is null)
+        if (role is null || !await CanAccessRoleAsync(role, cancellationToken))
         {
             return new(RoleMutationStatus.NotFound, null);
         }
@@ -204,7 +222,7 @@ internal sealed class EfRoleManagement(
         CancellationToken cancellationToken)
     {
         var role = await roleManager.FindByIdAsync(roleId.ToString());
-        if (role is null)
+        if (role is null || !await CanAccessRoleAsync(role, cancellationToken))
         {
             return Result(RoleMutationStatus.NotFound);
         }
@@ -284,6 +302,8 @@ internal sealed class EfRoleManagement(
             .CountAsync(userRole => userRole.RoleId == role.Id, cancellationToken);
         return new(
             role.Id,
+            role.CompanyId,
+            role.CompanyName,
             role.Name,
             description,
             permissionIds,
@@ -402,7 +422,13 @@ internal sealed class EfRoleManagement(
 
     private static RolePermissionMutationResult Result(RoleMutationStatus status) => new(status, null, [], []);
 
-    private sealed record RoleRow(Guid Id, string Name, string ConcurrencyStamp);
+    private async Task<bool> CanAccessRoleAsync(ApplicationRole role, CancellationToken ct)
+    {
+        var tenant = await tenantAccessor.GetAsync(ct);
+        return tenant is not null && (tenant.IsPlatformAdministrator || role.CompanyId == tenant.CompanyId);
+    }
+
+    private sealed record RoleRow(Guid Id, Guid CompanyId, string CompanyName, string Name, string ConcurrencyStamp);
     private sealed record CountRow(Guid Id, int Count);
     private sealed record PermissionValidation(bool IsValid, IReadOnlySet<int> PermissionIds);
 }

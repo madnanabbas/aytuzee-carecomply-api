@@ -124,6 +124,9 @@ public sealed class AuthController : ControllerBase
             user.Id,
             user.Email,
             user.DisplayName,
+            user.CompanyId,
+            user.CompanyName,
+            user.IsPlatformAdministrator,
             user.Permissions));
     }
 

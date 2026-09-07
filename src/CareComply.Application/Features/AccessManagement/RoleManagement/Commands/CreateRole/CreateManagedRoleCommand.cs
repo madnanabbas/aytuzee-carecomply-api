@@ -6,6 +6,7 @@ using Mediator;
 namespace CareComply.Application.Features.AccessManagement.RoleManagement.Commands.CreateRole;
 
 public sealed record CreateManagedRoleCommand(
+    Guid? CompanyId,
     string Name,
     string? Description,
     IReadOnlyList<int> PermissionIds)

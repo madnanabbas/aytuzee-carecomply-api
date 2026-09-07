@@ -1,10 +1,12 @@
 using CareComply.Application.Abstractions.Identity;
 using Microsoft.AspNetCore.Identity;
+using CareComply.Infrastructure.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityUserStatusAdministration(
     UserManager<ApplicationUser> userManager,
+    TenantUserAccess tenantUserAccess,
     IUserDirectory userDirectory) : IUserStatusAdministration
 {
     public async Task<UserStatusUpdateResult> SetActiveAsync(
@@ -13,6 +15,11 @@ internal sealed class IdentityUserStatusAdministration(
         string editorVersion,
         CancellationToken cancellationToken)
     {
+        if (!await tenantUserAccess.CanManageAsync(userId, cancellationToken))
+        {
+            return new(UserAdministrationStatus.NotFound, null);
+        }
+
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
         {

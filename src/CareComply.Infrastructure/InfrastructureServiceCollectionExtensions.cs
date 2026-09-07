@@ -1,4 +1,6 @@
 using CareComply.Infrastructure.Clients;
+using CareComply.Infrastructure.Companies;
+using CareComply.Application.Abstractions.Companies;
 using CareComply.Application.Abstractions.Clients;
 using CareComply.Application.Abstractions.Auditing;
 using CareComply.Application.Abstractions.Authorization;
@@ -14,6 +16,8 @@ using CareComply.Infrastructure.Identity.Staging;
 using CareComply.Infrastructure.Navigation;
 using CareComply.Infrastructure.Persistence;
 using CareComply.Infrastructure.Persistence.Interceptors;
+using CareComply.Application.Abstractions.Tenancy;
+using CareComply.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
@@ -129,6 +133,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IUserMfaAdministration, IdentityUserMfaAdministration>();
         services.AddScoped<IUserRoleAdministration, IdentityUserRoleAdministration>();
         services.AddScoped<IUserPermissionResolver, EfUserPermissionResolver>();
+        services.AddScoped<ITenantScopeAccessor, EfTenantScopeAccessor>();
+        services.AddScoped<ICompanyAdministration, EfCompanyAdministration>();
+        services.AddScoped<TenantUserAccess>();
         services.AddScoped<INavigationDirectory, EfNavigationDirectory>();
         services.AddScoped<INavigationAdministration, EfNavigationAdministration>();
         services.AddScoped<IClientDirectory, EfClientDirectory>();

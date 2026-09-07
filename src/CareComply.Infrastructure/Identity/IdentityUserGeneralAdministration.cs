@@ -1,10 +1,12 @@
 using CareComply.Application.Abstractions.Identity;
 using Microsoft.AspNetCore.Identity;
+using CareComply.Infrastructure.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityUserGeneralAdministration(
     UserManager<ApplicationUser> userManager,
+    TenantUserAccess tenantUserAccess,
     IUserDirectory userDirectory,
     TimeProvider timeProvider) : IUserGeneralAdministration
 {
@@ -12,6 +14,11 @@ internal sealed class IdentityUserGeneralAdministration(
         UserGeneralUpdateRequest request,
         CancellationToken cancellationToken)
     {
+        if (!await tenantUserAccess.CanManageAsync(request.UserId, cancellationToken))
+        {
+            return new(UserAdministrationStatus.NotFound, null, []);
+        }
+
         var user = await userManager.FindByIdAsync(request.UserId.ToString());
         if (user is null)
         {

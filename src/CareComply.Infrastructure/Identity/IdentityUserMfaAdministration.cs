@@ -1,10 +1,12 @@
 using CareComply.Application.Abstractions.Identity;
 using Microsoft.AspNetCore.Identity;
+using CareComply.Infrastructure.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityUserMfaAdministration(
     UserManager<ApplicationUser> userManager,
+    TenantUserAccess tenantUserAccess,
     IUserStore<ApplicationUser> userStore,
     IMfaRequirementEvaluator mfaRequirementEvaluator,
     IUserDirectory userDirectory,
@@ -17,6 +19,11 @@ internal sealed class IdentityUserMfaAdministration(
         string editorVersion,
         CancellationToken cancellationToken)
     {
+        if (!await tenantUserAccess.CanManageAsync(userId, cancellationToken))
+        {
+            return new(UserMfaUpdateStatus.NotFound, null);
+        }
+
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
         {

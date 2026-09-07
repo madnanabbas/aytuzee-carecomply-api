@@ -24,6 +24,7 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
 
         entity.HasKey(client => client.Id).HasName("PK_Clients");
         entity.Property(client => client.Id).ValueGeneratedNever();
+        entity.Property(client => client.CompanyId).IsRequired();
         entity.Property(client => client.FirstName).HasMaxLength(Client.MaximumNameLength).IsRequired();
         entity.Property(client => client.MiddleName).HasMaxLength(Client.MaximumNameLength).IsRequired();
         entity.Property(client => client.LastName).HasMaxLength(Client.MaximumNameLength).IsRequired();
@@ -59,7 +60,12 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.Property(client => client.UpdatedAtUtc).HasColumnType("datetimeoffset(0)");
         entity.Property(client => client.RowVersion).IsRowVersion().IsConcurrencyToken();
 
-        entity.HasIndex(client => client.PmiNumber)
+        entity.HasOne<CareComply.Domain.Companies.Company>()
+            .WithMany()
+            .HasForeignKey(client => client.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_Clients_Companies_CompanyId");
+        entity.HasIndex(client => new { client.CompanyId, client.PmiNumber })
             .HasDatabaseName("UX_Clients_PmiNumber")
             .IsUnique();
         entity.HasIndex(client => new { client.Status, client.LastName, client.FirstName })

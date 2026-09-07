@@ -31,6 +31,9 @@ public sealed class GetCurrentUserQueryHandler(
             user.Id,
             user.Email,
             user.DisplayName,
+            user.CompanyId,
+            user.CompanyName,
+            user.IsPlatformAdministrator,
             permissions.Order(StringComparer.Ordinal).ToArray());
     }
 }

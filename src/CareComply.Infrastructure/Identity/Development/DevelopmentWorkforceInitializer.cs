@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using CareComply.Infrastructure.Tenancy;
 
 namespace CareComply.Infrastructure.Identity.Development;
 
@@ -28,6 +29,7 @@ public sealed class DevelopmentWorkforceInitializer(
             {
                 user = new ApplicationUser
                 {
+                    CompanyId = TenantDefaults.DefaultCompanyId,
                     Email = fixture.Email,
                     UserName = fixture.Email,
                     EmailConfirmed = true,

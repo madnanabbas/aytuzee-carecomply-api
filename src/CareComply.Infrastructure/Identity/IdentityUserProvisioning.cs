@@ -2,11 +2,13 @@ using CareComply.Application.Abstractions.Identity;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityUserProvisioning(
     CareComplyDbContext context,
+    ITenantScopeAccessor tenantScopeAccessor,
     UserManager<ApplicationUser> userManager,
     TimeProvider timeProvider) : IUserProvisioning
 {
@@ -14,6 +16,9 @@ internal sealed class IdentityUserProvisioning(
         UserProvisioningRequest request,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return new(UserProvisioningStatus.Unavailable, null);
+
         var roles = await context.Roles
             .Where(role => request.RoleIds.Contains(role.Id))
             .OrderBy(role => role.Name)
@@ -29,6 +34,7 @@ internal sealed class IdentityUserProvisioning(
         var now = timeProvider.GetUtcNow();
         var user = new ApplicationUser
         {
+            CompanyId = tenant.CompanyId,
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,

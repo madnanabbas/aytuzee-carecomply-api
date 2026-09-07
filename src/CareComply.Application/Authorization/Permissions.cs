@@ -145,6 +145,14 @@ public static class Permissions
         public const string View = "AuditLog.View";
     }
 
+    public static class Company
+    {
+        public const string View = "Company.View";
+        public const string Create = "Company.Create";
+        public const string Edit = "Company.Edit";
+        public const string Delete = "Company.Delete";
+    }
+
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(
         [
             Dashboard.View,
@@ -211,6 +219,10 @@ public static class Permissions
             Permission.View,
             Permission.Manage,
             AuditLog.View,
+            Company.View,
+            Company.Create,
+            Company.Edit,
+            Company.Delete,
         ]);
 
     private static readonly HashSet<string> DefinedPermissions =
