@@ -40,7 +40,7 @@ public sealed class AuthController : ControllerBase
     {
         var result = await _sender.Send(
             new LoginCommand(request.Email ?? string.Empty, request.Password ?? string.Empty),
-            cancellationToken);
+            cancellationToken); 
 
         return result.Status switch
         {
