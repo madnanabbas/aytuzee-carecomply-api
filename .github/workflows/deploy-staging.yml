@@ -62,7 +62,9 @@ jobs:
           mkdir -p public/config
           cat > public/config/app-config.json <<'EOF'
           {
-            "apiBaseUrl": "/api"
+            "apiBaseUrl": "/api",
+            "postalLookupBaseUrl": "https://api.zippopotam.us",
+            "geographyBaseUrl": "https://countriesnow.space/api/v0.1"
           }
           EOF
 
