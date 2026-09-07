@@ -106,7 +106,6 @@ app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 
-app.UseDefaultFiles();
 
 app.UseStaticFiles(new StaticFileOptions
 {

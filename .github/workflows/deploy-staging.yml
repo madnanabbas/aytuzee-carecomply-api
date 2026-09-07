@@ -155,15 +155,6 @@ jobs:
 
           grep -q '"apiBaseUrl": "/api"' \
             "${{ env.PUBLISH_DIR }}/wwwroot/config/app-config.json"
-            
-          grep -q '"apiBaseUrl": "/api"' \
-            "${{ env.PUBLISH_DIR }}/wwwroot/config/app-config.json"
-
-          grep -q '"postalLookupBaseUrl": "https://api.zippopotam.us"' \
-            "${{ env.PUBLISH_DIR }}/wwwroot/config/app-config.json"
-
-          grep -q '"geographyBaseUrl": "https://countriesnow.space/api/v0.1"' \
-            "${{ env.PUBLISH_DIR }}/wwwroot/config/app-config.json"
 
       # -------------------------------------------------------
       # Deploy to Azure App Service
