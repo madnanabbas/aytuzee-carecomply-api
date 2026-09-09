@@ -1,10 +1,15 @@
 using CareComply.Application.Abstractions.Identity;
 using Microsoft.AspNetCore.Identity;
 using CareComply.Infrastructure.Tenancy;
+using CareComply.Application.Abstractions.Tenancy;
+using CareComply.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityUserGeneralAdministration(
+    CareComplyDbContext context,
+    ITenantScopeAccessor tenantScopeAccessor,
     UserManager<ApplicationUser> userManager,
     TenantUserAccess tenantUserAccess,
     IUserDirectory userDirectory,
@@ -23,6 +28,26 @@ internal sealed class IdentityUserGeneralAdministration(
         if (user is null)
         {
             return new(UserAdministrationStatus.NotFound, null, []);
+        }
+
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return new(UserAdministrationStatus.NotFound, null, []);
+        var targetCompanyId = user.IsPlatformAdministrator
+            ? null
+            : tenant.IsPlatformAdministrator ? request.CompanyId : tenant.CompanyId;
+        if (!user.IsPlatformAdministrator && (targetCompanyId is null ||
+            !await context.Companies.AnyAsync(company => company.Id == targetCompanyId && company.IsActive, cancellationToken)))
+        {
+            return new(UserAdministrationStatus.CompanyNotFound, null, []);
+        }
+        var locationIds = request.LocationIds is null
+            ? await context.UserLocations.Where(x => x.UserId == user.Id).Select(x => x.LocationId).ToArrayAsync(cancellationToken)
+            : request.LocationIds.Distinct().ToArray();
+        if (!user.IsPlatformAdministrator && (locationIds.Length == 0 || await context.CompanyLocations.CountAsync(
+                location => locationIds.Contains(location.Id) && location.CompanyId == targetCompanyId && location.IsActive,
+                cancellationToken) != locationIds.Length))
+        {
+            return new(UserAdministrationStatus.CompanyNotFound, null, []);
         }
 
         if (!IdentityEditorVersion.Matches(
@@ -52,6 +77,7 @@ internal sealed class IdentityUserGeneralAdministration(
         user.Email = request.Email;
         user.UserName = request.Email;
         user.PhoneNumber = request.PhoneNumber;
+        user.CompanyId = targetCompanyId;
         user.UpdatedAtUtc = timeProvider.GetUtcNow();
 
         if (emailChanged)
@@ -69,6 +95,15 @@ internal sealed class IdentityUserGeneralAdministration(
         if (!profileResult.Succeeded)
         {
             return new(MapUpdateFailure(profileResult), null, []);
+        }
+
+        if (!user.IsPlatformAdministrator)
+        {
+            var existingLocations = await context.UserLocations.Where(x => x.UserId == user.Id).ToArrayAsync(cancellationToken);
+            context.UserLocations.RemoveRange(existingLocations.Where(x => !locationIds.Contains(x.LocationId)));
+            var existingIds = existingLocations.Select(x => x.LocationId).ToHashSet();
+            await context.UserLocations.AddRangeAsync(locationIds.Where(id => !existingIds.Contains(id)).Select(id => new ApplicationUserLocation { UserId = user.Id, LocationId = id }), cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         if (passwordChanged)
@@ -135,6 +170,7 @@ internal sealed class IdentityUserGeneralAdministration(
         AddIfChanged(fields, "LastName", user.LastName, request.LastName);
         AddIfChanged(fields, "Email", user.Email, request.Email);
         AddIfChanged(fields, "PhoneNumber", user.PhoneNumber, request.PhoneNumber);
+        if (!user.IsPlatformAdministrator && user.CompanyId != request.CompanyId) fields.Add("CompanyId");
 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {

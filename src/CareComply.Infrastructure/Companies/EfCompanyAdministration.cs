@@ -27,6 +27,7 @@ internal sealed class EfCompanyAdministration(CareComplyDbContext context, ITena
         if (await context.Companies.AnyAsync(x => x.Code == normalizedCode, ct)) return new(CompanyMutationStatus.DuplicateCode);
         var company = Company.Create(Guid.CreateVersion7(), name, normalizedCode, timeProvider.GetUtcNow());
         context.Companies.Add(company);
+        context.CompanyLocations.Add(CompanyLocation.Create(Guid.CreateVersion7(), company.Id, "Main", true, timeProvider.GetUtcNow()));
         await context.SaveChangesAsync(ct);
         return new(CompanyMutationStatus.Succeeded, await GetAsync(company.Id, ct));
     }

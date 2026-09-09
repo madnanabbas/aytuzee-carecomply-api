@@ -1,5 +1,6 @@
 using CareComply.Application.Abstractions.Clients;
 using CareComply.Domain.Clients;
+using CareComply.Domain.Companies;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using CareComply.Application.Abstractions.Tenancy;
@@ -18,7 +19,14 @@ internal sealed class EfClientAdministration(
         CancellationToken cancellationToken)
     {
         var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
-        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+        if (tenant?.CompanyId is null) return Failed(ClientAdministrationStatus.NotFound);
+
+        var location = await ResolveLocationAsync(
+            tenant.CompanyId.Value,
+            request.CareSetup.LocationId,
+            request.CareSetup.Location,
+            cancellationToken);
+        if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
 
         var pmiNumber = NormalizeRequired(request.Identity.PmiNumber);
         if (await context.Clients.AsNoTracking().AnyAsync(
@@ -35,7 +43,7 @@ internal sealed class EfClientAdministration(
         {
             var client = Client.Create(
                 clientId,
-                tenant.CompanyId,
+                tenant.CompanyId.Value,
                 request.Identity.FirstName,
                 request.Identity.MiddleName,
                 request.Identity.LastName,
@@ -70,13 +78,14 @@ internal sealed class EfClientAdministration(
                 request.CareSetup.SocDate,
                 request.InitialStatus,
                 request.CareSetup.ReferralSource,
-                request.CareSetup.Location,
+                location.Name,
                 request.Contact.InsuranceProvider,
                 request.CareSetup.IsOnboarding,
                 request.CareSetup.EvvAuthorizedHoursPerWeek,
                 request.InitialStatus == ClientStatus.Discharged ? request.DischargeDate : null,
                 request.InitialStatus == ClientStatus.Discharged ? request.DischargeReason : null,
                 now);
+            client.AssignLocation(location.Id, location.Name, now);
             client.ChangeSafety(
                 request.Safety.SafetyMeasures,
                 request.Safety.SpecialEquipment,
@@ -137,12 +146,20 @@ internal sealed class EfClientAdministration(
 
         var client = await context.Clients.SingleOrDefaultAsync(
             item => item.Id == request.ClientId
-                && (tenant.IsPlatformAdministrator || item.CompanyId == tenant.CompanyId),
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access => access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
             cancellationToken);
         if (client is null)
         {
             return Failed(ClientAdministrationStatus.NotFound);
         }
+
+        var location = await ResolveLocationAsync(
+            client.CompanyId,
+            request.CareSetup.LocationId,
+            request.CareSetup.Location,
+            cancellationToken);
+        if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
 
         if (!ClientEditorVersion.Matches(client.RowVersion, request.EditorVersion))
         {
@@ -174,7 +191,8 @@ internal sealed class EfClientAdministration(
         var identityChanged = IdentityChanged(client, request.Identity);
         var ssnChanged = !SsnMatches(client.ProtectedSsn, request.Identity.Ssn, sensitiveData);
         var contactChanged = ContactChanged(client, request.Contact);
-        var careChanged = CareChanged(client, request.CareSetup, request.Contact.InsuranceProvider);
+        var careChanged = CareChanged(client, request.CareSetup, request.Contact.InsuranceProvider)
+            || client.LocationId != location.Id;
         var safetyChanged = SafetyChanged(client, request.Safety);
         var profileChanged = ProfileChanged(profile, request.AdditionalProfile);
         var serviceChange = AnalyzeServiceChanges(activeServices, request.Services);
@@ -257,13 +275,14 @@ internal sealed class EfClientAdministration(
                     request.CareSetup.SocDate,
                     client.Status,
                     request.CareSetup.ReferralSource,
-                    request.CareSetup.Location,
+                    location.Name,
                     request.Contact.InsuranceProvider,
                     request.CareSetup.IsOnboarding,
                     request.CareSetup.EvvAuthorizedHoursPerWeek,
                     client.DischargeDate,
                     client.DischargeReason,
                     now);
+                client.AssignLocation(location.Id, location.Name, now);
                 changedSections.Add("CareSetup");
             }
 
@@ -358,7 +377,8 @@ internal sealed class EfClientAdministration(
 
         var client = await context.Clients.SingleOrDefaultAsync(
             item => item.Id == request.ClientId
-                && (tenant.IsPlatformAdministrator || item.CompanyId == tenant.CompanyId),
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access => access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
             cancellationToken);
         if (client is null)
         {
@@ -652,6 +672,32 @@ internal sealed class EfClientAdministration(
     private static bool IsServiceConstraint(DbUpdateException exception) =>
         IsConstraint(exception, "UX_ClientServices_Client_Code_StartDate")
         || IsConstraint(exception, "UX_ClientServices_Client_Code_Active");
+
+    private async Task<CompanyLocation?> ResolveLocationAsync(
+        Guid companyId,
+        Guid? locationId,
+        string? locationName,
+        CancellationToken cancellationToken)
+    {
+        var query = context.CompanyLocations.AsNoTracking()
+            .Where(location => location.CompanyId == companyId && location.IsActive);
+
+        if (locationId.HasValue)
+        {
+            return await query.SingleOrDefaultAsync(location => location.Id == locationId.Value, cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(locationName))
+        {
+            var normalizedName = locationName.Trim();
+            var namedLocation = await query.SingleOrDefaultAsync(
+                location => location.Name == normalizedName,
+                cancellationToken);
+            if (namedLocation is not null) return namedLocation;
+        }
+
+        return await query.SingleOrDefaultAsync(location => location.IsMain, cancellationToken);
+    }
 
     private static bool IsConstraint(DbUpdateException exception, string constraintName) =>
         exception.GetBaseException().Message.Contains(

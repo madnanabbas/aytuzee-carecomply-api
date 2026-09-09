@@ -25,7 +25,8 @@ internal sealed class DataProtectionClientSensitiveData(
 
         var protectedSsn = await context.Clients.AsNoTracking()
             .Where(client => client.Id == clientId
-                && (tenant.IsPlatformAdministrator || client.CompanyId == tenant.CompanyId))
+                && (tenant.IsPlatformAdministrator || (client.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access => access.UserId == tenant.UserId && access.LocationId == client.LocationId))))
             .Select(client => client.ProtectedSsn)
             .SingleOrDefaultAsync(cancellationToken);
         return string.IsNullOrEmpty(protectedSsn) ? null : Unprotect(protectedSsn);

@@ -11,6 +11,7 @@ public sealed class CreateUserCommandHandler(IUserProvisioning provisioning)
         CancellationToken cancellationToken) =>
         CreateUserResult.Completed(await provisioning.CreateAsync(
             new(
+                command.CompanyId,
                 command.FirstName.Trim(),
                 command.LastName.Trim(),
                 command.Email.Trim(),
@@ -19,6 +20,7 @@ public sealed class CreateUserCommandHandler(IUserProvisioning provisioning)
                 command.IsActive,
                 command.RequiresMfa,
                 command.MfaMethod,
-                command.RoleIds),
+                command.RoleIds,
+                command.LocationIds ?? []),
             cancellationToken));
 }

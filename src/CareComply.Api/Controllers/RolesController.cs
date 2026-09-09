@@ -28,6 +28,8 @@ public sealed class RolesController(ISender sender) : ControllerBase
             ?? throw new InvalidOperationException("The role list result does not contain roles.");
         return Ok(roles.Select(role => new RoleMetadataResponse(
             role.Id,
+            role.CompanyId,
+            role.CompanyName,
             role.Name,
             role.Permissions,
             role.RequiresMfa)));

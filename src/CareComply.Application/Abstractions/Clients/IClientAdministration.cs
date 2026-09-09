@@ -56,7 +56,8 @@ public sealed record ClientCareSetupInput(
     string? ReferralSource,
     string? Location,
     bool IsOnboarding,
-    decimal? EvvAuthorizedHoursPerWeek);
+    decimal? EvvAuthorizedHoursPerWeek,
+    Guid? LocationId = null);
 
 public sealed record ClientSafetyInput(
     string? SafetyMeasures,

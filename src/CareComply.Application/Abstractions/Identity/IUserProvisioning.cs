@@ -8,6 +8,7 @@ public interface IUserProvisioning
 }
 
 public sealed record UserProvisioningRequest(
+    Guid? CompanyId,
     string FirstName,
     string LastName,
     string Email,
@@ -16,7 +17,8 @@ public sealed record UserProvisioningRequest(
     bool IsActive,
     bool RequiresMfa,
     UserMfaMethod MfaMethod,
-    IReadOnlyList<Guid> RoleIds);
+    IReadOnlyList<Guid> RoleIds,
+    IReadOnlyList<Guid> LocationIds);
 
 public sealed record UserProvisioningResult(
     UserProvisioningStatus Status,
@@ -29,5 +31,6 @@ public enum UserProvisioningStatus
     InvalidPassword,
     RoleNotFound,
     RoleAssignmentFailed,
+    CompanyNotFound,
     Unavailable,
 }

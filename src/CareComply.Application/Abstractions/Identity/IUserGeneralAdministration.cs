@@ -9,12 +9,14 @@ public interface IUserGeneralAdministration
 
 public sealed record UserGeneralUpdateRequest(
     Guid UserId,
+    Guid? CompanyId,
     string FirstName,
     string LastName,
     string Email,
     string? PhoneNumber,
     string? Password,
-    string EditorVersion);
+    string EditorVersion,
+    IReadOnlyList<Guid>? LocationIds = null);
 
 public sealed record UserGeneralUpdateResult(
     UserAdministrationStatus Status,
@@ -28,5 +30,6 @@ public enum UserAdministrationStatus
     Conflict,
     DuplicateEmail,
     InvalidPassword,
+    CompanyNotFound,
     NoChanges,
 }

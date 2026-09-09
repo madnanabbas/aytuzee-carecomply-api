@@ -19,8 +19,16 @@ internal sealed class IdentityUserProvisioning(
         var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
         if (tenant is null) return new(UserProvisioningStatus.Unavailable, null);
 
+        var targetCompanyId = tenant.IsPlatformAdministrator ? request.CompanyId : tenant.CompanyId;
+        if (targetCompanyId is null
+            || (!tenant.IsPlatformAdministrator && request.CompanyId is not null && request.CompanyId != tenant.CompanyId)
+            || !await context.Companies.AnyAsync(company => company.Id == targetCompanyId && company.IsActive, cancellationToken))
+        {
+            return new(UserProvisioningStatus.CompanyNotFound, null);
+        }
+
         var roles = await context.Roles
-            .Where(role => request.RoleIds.Contains(role.Id))
+            .Where(role => request.RoleIds.Contains(role.Id) && role.CompanyId == targetCompanyId)
             .OrderBy(role => role.Name)
             .Select(role => new RoleProjection(role.Id, role.Name ?? string.Empty))
             .ToArrayAsync(cancellationToken);
@@ -31,10 +39,25 @@ internal sealed class IdentityUserProvisioning(
             return new(UserProvisioningStatus.RoleNotFound, null);
         }
 
+        var locationIds = request.LocationIds.Distinct().ToArray();
+        if (locationIds.Length == 0)
+        {
+            locationIds = await context.CompanyLocations
+                .Where(location => location.CompanyId == targetCompanyId && location.IsMain && location.IsActive)
+                .Select(location => location.Id)
+                .ToArrayAsync(cancellationToken);
+        }
+        if (locationIds.Length == 0 || await context.CompanyLocations.CountAsync(
+                location => locationIds.Contains(location.Id) && location.CompanyId == targetCompanyId && location.IsActive,
+                cancellationToken) != locationIds.Length)
+        {
+            return new(UserProvisioningStatus.CompanyNotFound, null);
+        }
+
         var now = timeProvider.GetUtcNow();
         var user = new ApplicationUser
         {
-            CompanyId = tenant.CompanyId,
+            CompanyId = targetCompanyId,
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
@@ -70,6 +93,9 @@ internal sealed class IdentityUserProvisioning(
                     : UserProvisioningStatus.RoleAssignmentFailed,
                 null);
         }
+
+        await context.UserLocations.AddRangeAsync(locationIds.Select(locationId => new ApplicationUserLocation { UserId = user.Id, LocationId = locationId }), cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
 
         return new(UserProvisioningStatus.Succeeded, user.Id);
     }

@@ -20,7 +20,8 @@ internal sealed class EfClientDirectory(
         var clients = context.Clients.AsNoTracking().AsQueryable();
         if (!tenant.IsPlatformAdministrator)
         {
-            clients = clients.Where(client => client.CompanyId == tenant.CompanyId);
+            clients = clients.Where(client => client.CompanyId == tenant.CompanyId
+                && context.UserLocations.Any(access => access.UserId == tenant.UserId && access.LocationId == client.LocationId));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -150,7 +151,8 @@ internal sealed class EfClientDirectory(
 
         var client = await context.Clients.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == clientId
-                && (tenant.IsPlatformAdministrator || item.CompanyId == tenant.CompanyId), cancellationToken);
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access => access.UserId == tenant.UserId && access.LocationId == item.LocationId))), cancellationToken);
         if (client is null)
         {
             return null;
@@ -220,7 +222,8 @@ internal sealed class EfClientDirectory(
             languages,
             client.CreatedAtUtc,
             client.UpdatedAtUtc,
-            ClientEditorVersion.Create(client.RowVersion));
+            ClientEditorVersion.Create(client.RowVersion),
+            client.LocationId);
     }
 
     private static IQueryable<Client> ApplySort(

@@ -18,16 +18,19 @@ internal sealed class EfTenantScopeAccessor(
         loaded = true;
         if (!currentActor.IsAuthenticated || currentActor.UserId is not { } userId) return null;
 
-        cached = await (
-            from user in context.Users.AsNoTracking()
-            join company in context.Companies.AsNoTracking() on user.CompanyId equals company.Id
-            where user.Id == userId && user.IsActive && company.IsActive
-            select new TenantScope(
+        cached = await context.Users.AsNoTracking()
+            .Where(user => user.Id == userId && user.IsActive)
+            .Select(user => new TenantScope(
                 user.Id,
-                company.Id,
-                company.Name,
+                user.CompanyId,
+                user.IsPlatformAdministrator ? null : context.Companies
+                    .Where(company => company.Id == user.CompanyId && company.IsActive)
+                    .Select(company => company.Name).SingleOrDefault(),
                 user.IsPlatformAdministrator))
             .SingleOrDefaultAsync(cancellationToken);
+
+        if (cached is { IsPlatformAdministrator: false, CompanyId: null } ||
+            cached is { IsPlatformAdministrator: false, CompanyName: null }) cached = null;
 
         return cached;
     }

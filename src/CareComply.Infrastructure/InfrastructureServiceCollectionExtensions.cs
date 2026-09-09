@@ -106,9 +106,8 @@ public static class InfrastructureServiceCollectionExtensions
                 options => !string.IsNullOrWhiteSpace(options.Issuer),
                 "The MFA issuer is required.")
             .Validate(
-                options => options.RequiredPermissions.Length > 0
-                    && options.RequiredPermissions.All(Permissions.IsDefined),
-                "MFA required permissions must be non-empty canonical permissions.")
+                options => options.RequiredPermissions.All(Permissions.IsDefined),
+                "MFA permission configuration contains an unknown permission.")
             .ValidateOnStart();
         services.AddScoped<DevelopmentIdentityInitializer>();
         services.AddScoped<DevelopmentWorkforceInitializer>();
@@ -135,6 +134,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IUserPermissionResolver, EfUserPermissionResolver>();
         services.AddScoped<ITenantScopeAccessor, EfTenantScopeAccessor>();
         services.AddScoped<ICompanyAdministration, EfCompanyAdministration>();
+        services.AddScoped<ILocationAdministration, EfLocationAdministration>();
         services.AddScoped<TenantUserAccess>();
         services.AddScoped<INavigationDirectory, EfNavigationDirectory>();
         services.AddScoped<INavigationAdministration, EfNavigationAdministration>();

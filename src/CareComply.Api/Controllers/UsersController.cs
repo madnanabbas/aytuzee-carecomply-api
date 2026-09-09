@@ -39,7 +39,9 @@ public sealed class UsersController(ISender sender) : ControllerBase
             request.IsActive,
             request.RequiresMfa,
             mfaMethod,
-            request.RoleIds ?? []), cancellationToken);
+            request.RoleIds ?? [],
+            request.CompanyId,
+            request.LocationIds), cancellationToken);
         if (result.AuthorizationFailure is { } failure)
         {
             return MapAuthorizationFailure(failure);
@@ -61,6 +63,9 @@ public sealed class UsersController(ISender sender) : ControllerBase
                 statusCode: 400,
                 title: "One or more selected roles are unavailable.",
                 type: ProblemTypes.UserRoleInvalid),
+            UserProvisioningStatus.CompanyNotFound => Problem(
+                statusCode: 400,
+                title: "Select an active company for this user."),
             _ => Problem(
                 statusCode: 409,
                 title: "The user could not be created.",
@@ -99,7 +104,9 @@ public sealed class UsersController(ISender sender) : ControllerBase
             request.Email,
             request.PhoneNumber,
             request.Password,
-            request.EditorVersion), cancellationToken);
+            request.EditorVersion,
+            request.CompanyId,
+            request.LocationIds), cancellationToken);
         if (result.AuthorizationFailure is { } failure)
         {
             return MapAuthorizationFailure(failure);
@@ -287,6 +294,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
             UserAdministrationStatus.NotFound => Problem(statusCode: 404, title: "User not found.", type: ProblemTypes.UserNotFound),
             UserAdministrationStatus.DuplicateEmail => Problem(statusCode: 409, title: "That email address is already in use.", type: ProblemTypes.UserDuplicateEmail),
             UserAdministrationStatus.InvalidPassword => Problem(statusCode: 400, title: "The password does not meet the account password requirements.", type: ProblemTypes.UserPasswordInvalid),
+            UserAdministrationStatus.CompanyNotFound => Problem(statusCode: 400, title: "Select an active company for this user."),
             _ => Problem(statusCode: 409, title: "The user was changed by another request. Reload and try again.", type: ProblemTypes.UserConflict),
         };
 
@@ -304,6 +312,9 @@ public sealed class UsersController(ISender sender) : ControllerBase
 
     private static UserDetailsResponse MapDetails(UserDirectoryDetails user) => new(
         user.Id,
+        user.CompanyId,
+        user.CompanyName,
+        user.IsPlatformAdministrator,
         user.FirstName,
         user.LastName,
         user.DisplayName,
@@ -316,6 +327,7 @@ public sealed class UsersController(ISender sender) : ControllerBase
         user.IsMfaRequiredByPermissions,
         user.MfaMethod.ToString(),
         user.Roles.Select(MapRole).ToArray(),
+        user.LocationIds,
         user.EditorVersion);
 
     private ObjectResult InvalidMfaMethod() => Problem(

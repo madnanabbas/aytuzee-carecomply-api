@@ -14,7 +14,9 @@ public sealed record CreateUserCommand(
     bool IsActive,
     bool RequiresMfa,
     UserMfaMethod MfaMethod,
-    IReadOnlyList<Guid> RoleIds)
+    IReadOnlyList<Guid> RoleIds,
+    Guid? CompanyId = null,
+    IReadOnlyList<Guid>? LocationIds = null)
     : ICommand<CreateUserResult>, IRequirePermission, IAuditableRequest<CreateUserResult>
 {
     public string RequiredPermission => Permissions.User.Manage;

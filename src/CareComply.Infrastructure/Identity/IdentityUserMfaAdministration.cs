@@ -8,7 +8,6 @@ internal sealed class IdentityUserMfaAdministration(
     UserManager<ApplicationUser> userManager,
     TenantUserAccess tenantUserAccess,
     IUserStore<ApplicationUser> userStore,
-    IMfaRequirementEvaluator mfaRequirementEvaluator,
     IUserDirectory userDirectory,
     TimeProvider timeProvider) : IUserMfaAdministration
 {
@@ -33,15 +32,6 @@ internal sealed class IdentityUserMfaAdministration(
         if (!IdentityEditorVersion.Matches(user.ConcurrencyStamp ?? string.Empty, editorVersion))
         {
             return new(UserMfaUpdateStatus.Conflict, null);
-        }
-
-        var requiredByPermissions = await mfaRequirementEvaluator
-            .IsRequiredByPermissionsAsync(user.Id, cancellationToken);
-        if (!isEnabled && requiredByPermissions)
-        {
-            return new(
-                UserMfaUpdateStatus.RequiredByPermissions,
-                await userDirectory.GetByIdAsync(user.Id, cancellationToken));
         }
 
         var methodChanged = user.MfaMethod != method;

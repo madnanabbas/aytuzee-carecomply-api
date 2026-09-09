@@ -12,7 +12,9 @@ public sealed record UpdateUserGeneralCommand(
     string Email,
     string? PhoneNumber,
     string? Password,
-    string EditorVersion)
+    string EditorVersion,
+    Guid? CompanyId = null,
+    IReadOnlyList<Guid>? LocationIds = null)
     : ICommand<UpdateUserGeneralResult>, IRequirePermission,
         IAuditableRequest<UpdateUserGeneralResult>
 {

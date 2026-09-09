@@ -7,6 +7,6 @@ public interface ITenantScopeAccessor
 
 public sealed record TenantScope(
     Guid UserId,
-    Guid CompanyId,
-    string CompanyName,
+    Guid? CompanyId,
+    string? CompanyName,
     bool IsPlatformAdministrator);

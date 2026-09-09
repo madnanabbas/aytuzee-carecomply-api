@@ -357,6 +357,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
                     "ClientServices",
                     "ClientTodos",
                     "Companies",
+                    "CompanyLocations",
                     "NavigationFeaturePermissions",
                     "NavigationFeatures",
                     "NavigationModules",
@@ -367,6 +368,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
                     "RoleProfiles",
                     "Roles",
                     "UserClaims",
+                    "UserLocations",
                     "UserLogins",
                     "UserRoles",
                     "Users",
@@ -411,7 +413,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
         foreignKeyCommand.CommandText =
             "SELECT COUNT(*) FROM sys.foreign_keys WHERE schema_id = SCHEMA_ID('dbo')";
         Assert.Equal(
-            32,
+            36,
             Convert.ToInt32(
                 await foreignKeyCommand.ExecuteScalarAsync(),
                 CultureInfo.InvariantCulture));

@@ -59,6 +59,7 @@ public sealed class Client
 
     public Guid Id { get; private set; }
     public Guid CompanyId { get; private set; }
+    public Guid LocationId { get; private set; }
     public string FirstName { get; private set; } = string.Empty;
     public string MiddleName { get; private set; } = string.Empty;
     public string LastName { get; private set; } = string.Empty;
@@ -184,6 +185,14 @@ public sealed class Client
         }
 
         EvvAuthorizedHoursPerWeek = evvAuthorizedHoursPerWeek;
+        Touch(updatedAtUtc);
+    }
+
+    public void AssignLocation(Guid locationId, string locationName, DateTimeOffset updatedAtUtc)
+    {
+        if (locationId == Guid.Empty) throw new ArgumentException("A location identifier is required.", nameof(locationId));
+        LocationId = locationId;
+        Location = Normalize(locationName, MaximumLocationLength, nameof(locationName));
         Touch(updatedAtUtc);
     }
 

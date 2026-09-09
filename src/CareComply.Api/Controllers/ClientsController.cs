@@ -405,7 +405,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
         request.ReferralSource,
         request.Location,
         request.IsOnboarding,
-        request.EvvAuthorizedHoursPerWeek);
+        request.EvvAuthorizedHoursPerWeek,
+        request.LocationId);
 
     private static ClientSafetyInput MapSafety(ClientSafetyRequest request) => new(
         request.SafetyMeasures,
@@ -494,7 +495,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
             client.IsOnboarding,
             client.EvvAuthorizedHoursPerWeek,
             client.DischargeDate,
-            client.DischargeReason),
+            client.DischargeReason,
+            client.LocationId),
         new(
             client.SafetyMeasures,
             client.SpecialEquipment,

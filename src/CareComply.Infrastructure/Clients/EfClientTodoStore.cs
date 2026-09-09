@@ -96,7 +96,8 @@ internal sealed class EfClientTodoStore(
         var tenant = await tenantScopeAccessor.GetAsync(ct);
         if (tenant is null) return null;
         return await context.Clients.AsNoTracking()
-            .Where(x => x.Id == clientId && (tenant.IsPlatformAdministrator || x.CompanyId == tenant.CompanyId))
+            .Where(x => x.Id == clientId && (tenant.IsPlatformAdministrator || (x.CompanyId == tenant.CompanyId
+                && context.UserLocations.Any(access => access.UserId == tenant.UserId && access.LocationId == x.LocationId))))
             .Select(x => (Guid?)x.CompanyId)
             .SingleOrDefaultAsync(ct);
     }

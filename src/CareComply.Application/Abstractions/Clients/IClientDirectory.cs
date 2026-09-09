@@ -96,7 +96,8 @@ public sealed record ClientDirectoryDetails(
     IReadOnlyList<ClientDirectoryLanguage> Languages,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    string EditorVersion);
+    string EditorVersion,
+    Guid LocationId);
 
 public sealed record ClientDirectoryAdditionalProfile(
     ClientProgramType ProgramType,

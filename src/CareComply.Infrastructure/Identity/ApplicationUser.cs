@@ -14,7 +14,7 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 
     public string LastName { get; set; } = string.Empty;
 
-    public Guid CompanyId { get; set; }
+    public Guid? CompanyId { get; set; }
 
     public bool IsPlatformAdministrator { get; set; }
 

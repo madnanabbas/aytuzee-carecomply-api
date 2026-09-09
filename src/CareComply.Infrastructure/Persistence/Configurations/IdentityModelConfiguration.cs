@@ -13,7 +13,7 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
         entity.ToTable("Users");
         entity.Property(user => user.FirstName).HasMaxLength(100).IsRequired();
         entity.Property(user => user.LastName).HasMaxLength(100).IsRequired();
-        entity.Property(user => user.CompanyId).IsRequired();
+        entity.Property(user => user.CompanyId).IsRequired(false);
         entity.Property(user => user.IsPlatformAdministrator).HasDefaultValue(false).IsRequired();
         entity.Property(user => user.IsActive).HasDefaultValue(true).IsRequired();
         entity.Property(user => user.IsEmployee).HasDefaultValue(false).IsRequired();

@@ -26,14 +26,14 @@ internal sealed class IdentityUserReader(
             .Where(company => company.Id == user.CompanyId && company.IsActive)
             .Select(company => company.Name)
             .SingleOrDefaultAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(companyName)) return null;
+        if (!user.IsPlatformAdministrator && string.IsNullOrWhiteSpace(companyName)) return null;
 
         return new IdentityUserSnapshot(
             user.Id,
             user.Email,
             string.Join(' ', user.FirstName, user.LastName).Trim(),
             user.CompanyId,
-            companyName,
+            user.IsPlatformAdministrator ? null : companyName,
             user.IsPlatformAdministrator);
     }
 }

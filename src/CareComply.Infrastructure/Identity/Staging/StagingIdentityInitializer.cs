@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using CareComply.Infrastructure.Tenancy;
+using CareComply.Domain.Companies;
 
 namespace CareComply.Infrastructure.Identity.Staging;
 
@@ -46,6 +47,8 @@ public sealed class StagingIdentityInitializer(
             await EnsureRolesAsync(
                 permissionIds,
                 cancellationToken);
+
+        await EnsureDemoLocationsAsync(cancellationToken);
 
         foreach (var fixture in UserFixtures)
         {
@@ -171,6 +174,24 @@ public sealed class StagingIdentityInitializer(
         return roles;
     }
 
+    private async Task EnsureDemoLocationsAsync(CancellationToken cancellationToken)
+    {
+        var existingNames = await context.CompanyLocations
+            .Where(location => location.CompanyId == TenantDefaults.DefaultCompanyId)
+            .Select(location => location.Name)
+            .ToArrayAsync(cancellationToken);
+        var existing = existingNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var now = timeProvider.GetUtcNow();
+
+        foreach (var name in DemoLocationFixtures.Names.Where(name => !existing.Contains(name)))
+        {
+            context.CompanyLocations.Add(CompanyLocation.Create(
+                Guid.CreateVersion7(), TenantDefaults.DefaultCompanyId, name, false, now));
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task EnsureUserAsync(
         StagingUserFixture fixture,
         string password,
@@ -187,7 +208,7 @@ public sealed class StagingIdentityInitializer(
 
             user = new ApplicationUser
             {
-                CompanyId = TenantDefaults.DefaultCompanyId,
+                CompanyId = fixture.RoleName == "System Administrator" ? null : TenantDefaults.DefaultCompanyId,
                 IsPlatformAdministrator = fixture.RoleName == "System Administrator",
                 Email = fixture.Email,
                 UserName = fixture.Email,
@@ -239,6 +260,19 @@ public sealed class StagingIdentityInitializer(
                     user,
                     role.Name!),
                 $"assign the staging role for '{fixture.Email}'");
+        }
+
+        if (!user.IsPlatformAdministrator)
+        {
+            var mainLocationId = await context.CompanyLocations
+                .Where(location => location.CompanyId == user.CompanyId && location.IsMain)
+                .Select(location => location.Id)
+                .SingleAsync();
+            if (!await context.UserLocations.AnyAsync(x => x.UserId == user.Id && x.LocationId == mainLocationId))
+            {
+                context.UserLocations.Add(new ApplicationUserLocation { UserId = user.Id, LocationId = mainLocationId });
+                await context.SaveChangesAsync();
+            }
         }
     }
 
