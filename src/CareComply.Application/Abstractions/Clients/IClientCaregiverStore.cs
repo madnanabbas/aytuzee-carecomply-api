@@ -13,13 +13,15 @@ public interface IClientCaregiverStore
 
 public sealed record ClientCaregiverItem(Guid Id, Guid UserId, string Name, string Title, string Phone, string Email,
     ClientCaregiverType Type, bool IsPreferred, string Services, DateOnly StartDate, DateOnly? EndDate,
-    string Notes, ClientCaregiverStatus Status, string EditorVersion);
+    string Notes, ClientCaregiverStatus Status, string EditorVersion, string RelationshipToClient = "", bool? LivesWithClient = null);
 public sealed record ClientCaregiverCandidate(Guid Id, string Name, string Title, string Phone, string Email);
 public sealed record ClientCaregiverList(IReadOnlyList<ClientCaregiverItem> Items);
 public sealed record ClientCaregiverCreate(Guid ClientId, Guid UserId, ClientCaregiverType Type, bool IsPreferred,
-    string? Services, DateOnly StartDate, DateOnly? EndDate, string? Notes, Guid ActorUserId, DateTimeOffset NowUtc);
+    string? Services, DateOnly StartDate, DateOnly? EndDate, string? Notes, Guid ActorUserId, DateTimeOffset NowUtc,
+    string? RelationshipToClient = null, bool? LivesWithClient = null);
 public sealed record ClientCaregiverUpdate(Guid ClientId, Guid AssignmentId, ClientCaregiverType Type, bool IsPreferred,
-    string? Services, DateOnly StartDate, DateOnly? EndDate, string? Notes, string EditorVersion, DateTimeOffset NowUtc);
+    string? Services, DateOnly StartDate, DateOnly? EndDate, string? Notes, string EditorVersion, DateTimeOffset NowUtc,
+    string? RelationshipToClient = null, bool? LivesWithClient = null);
 public sealed record ClientCaregiverEnd(Guid ClientId, Guid AssignmentId, DateOnly EndDate, string EditorVersion, DateTimeOffset NowUtc);
 public enum ClientCaregiverMutationStatus { Succeeded, ClientNotFound, AssignmentNotFound, InvalidCaregiver, DuplicateActiveAssignment, PrimaryConflict, Conflict, InvalidState }
 public sealed record ClientCaregiverMutation(ClientCaregiverMutationStatus Status, ClientCaregiverItem? Assignment = null);

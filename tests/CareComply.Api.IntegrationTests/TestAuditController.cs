@@ -72,6 +72,7 @@ public sealed class TestAuditController(
             context.Roles.Add(new ApplicationRole
             {
                 Id = message.ResourceId,
+                CompanyId = SqlServerApiFactory.DefaultCompanyId,
                 Name = roleName,
                 NormalizedName = roleName.ToUpperInvariant(),
             });

@@ -24,6 +24,7 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
 
         entity.HasKey(client => client.Id).HasName("PK_Clients");
         entity.Property(client => client.Id).ValueGeneratedNever();
+        entity.Property(client => client.CompanyId).IsRequired();
         entity.Property(client => client.FirstName).HasMaxLength(Client.MaximumNameLength).IsRequired();
         entity.Property(client => client.MiddleName).HasMaxLength(Client.MaximumNameLength).IsRequired();
         entity.Property(client => client.LastName).HasMaxLength(Client.MaximumNameLength).IsRequired();
@@ -59,7 +60,12 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.Property(client => client.UpdatedAtUtc).HasColumnType("datetimeoffset(0)");
         entity.Property(client => client.RowVersion).IsRowVersion().IsConcurrencyToken();
 
-        entity.HasIndex(client => client.PmiNumber)
+        entity.HasOne<CareComply.Domain.Companies.Company>()
+            .WithMany()
+            .HasForeignKey(client => client.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_Clients_Companies_CompanyId");
+        entity.HasIndex(client => new { client.CompanyId, client.PmiNumber })
             .HasDatabaseName("UX_Clients_PmiNumber")
             .IsUnique();
         entity.HasIndex(client => new { client.Status, client.LastName, client.FirstName })
@@ -174,6 +180,17 @@ internal sealed class ClientContactConfiguration : IEntityTypeConfiguration<Clie
         entity.Property(contact => contact.EffectiveFrom).HasColumnType("date");
         entity.Property(contact => contact.EffectiveTo).HasColumnType("date");
         entity.Property(contact => contact.Notes).HasMaxLength(ClientContact.MaximumNotesLength).IsRequired();
+        entity.Property(contact => contact.Address).HasMaxLength(ClientContact.MaximumAddressLength).IsRequired();
+        entity.Property(contact => contact.CompanyName).HasMaxLength(ClientContact.MaximumCompanyLength).IsRequired();
+        entity.Property(contact => contact.PhoneExtension).HasMaxLength(ClientContact.MaximumExtensionLength).IsRequired();
+        entity.Property(contact => contact.Fax).HasMaxLength(ClientContact.MaximumPhoneLength).IsRequired();
+        entity.Property(contact => contact.SecondaryName).HasMaxLength(ClientContact.MaximumNameLength).IsRequired();
+        entity.Property(contact => contact.SecondaryPhone).HasMaxLength(ClientContact.MaximumPhoneLength).IsRequired();
+        entity.Property(contact => contact.SecondaryAddress).HasMaxLength(ClientContact.MaximumAddressLength).IsRequired();
+        entity.Property(contact => contact.Npi).HasMaxLength(10).IsUnicode(false).IsRequired();
+        entity.Property(contact => contact.PostalCode).HasMaxLength(ClientContact.MaximumPostalCodeLength).IsRequired();
+        entity.Property(contact => contact.City).HasMaxLength(ClientContact.MaximumCityLength).IsRequired();
+        entity.Property(contact => contact.State).HasMaxLength(ClientContact.MaximumStateLength).IsRequired();
         entity.HasOne<Client>()
             .WithMany()
             .HasForeignKey(contact => contact.ClientId)

@@ -12,11 +12,13 @@ public sealed class UpdateUserGeneralCommandHandler(IUserGeneralAdministration a
         UpdateUserGeneralResult.Succeeded(await administration.UpdateAsync(
             new(
                 command.UserId,
+                command.CompanyId,
                 command.FirstName.Trim(),
                 command.LastName.Trim(),
                 command.Email.Trim(),
                 string.IsNullOrWhiteSpace(command.PhoneNumber) ? null : command.PhoneNumber.Trim(),
                 string.IsNullOrWhiteSpace(command.Password) ? null : command.Password,
-                command.EditorVersion),
+                command.EditorVersion,
+                command.LocationIds ?? []),
             cancellationToken));
 }

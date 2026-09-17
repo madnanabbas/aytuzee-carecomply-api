@@ -2,21 +2,24 @@ using CareComply.Application.Abstractions.Identity;
 using CareComply.Infrastructure.Authorization;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class EfRoleDirectory(
     CareComplyDbContext context,
-    IOptions<MfaPolicyOptions> mfaOptions) : IRoleDirectory
+    ITenantScopeAccessor tenantAccessor) : IRoleDirectory
 {
     public async Task<IReadOnlyList<RoleDirectoryItem>> ListAsync(
         CancellationToken cancellationToken)
     {
-        var roles = await context.Roles
-            .AsNoTracking()
-            .OrderBy(role => role.Name)
-            .Select(role => new RoleProjection(role.Id, role.Name ?? string.Empty))
+        var tenant = await tenantAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return [];
+        var roles = await (from role in context.Roles.AsNoTracking()
+            join company in context.Companies.AsNoTracking() on role.CompanyId equals company.Id
+            where tenant.IsPlatformAdministrator || role.CompanyId == tenant.CompanyId
+            orderby company.Name, role.Name
+            select new RoleProjection(role.Id, role.CompanyId, company.Name, role.Name ?? string.Empty))
             .ToArrayAsync(cancellationToken);
 
         var roleIds = roles.Select(role => role.Id).ToArray();
@@ -40,8 +43,6 @@ internal sealed class EfRoleDirectory(
                     .Distinct(StringComparer.Ordinal)
                     .Order(StringComparer.Ordinal)
                     .ToArray());
-        var mfaPermissions = mfaOptions.Value.RequiredPermissions.ToHashSet(StringComparer.Ordinal);
-
         return roles
             .Select(role =>
             {
@@ -50,12 +51,14 @@ internal sealed class EfRoleDirectory(
                     role.Id,
                     role.Name,
                     permissions,
-                    permissions.Any(mfaPermissions.Contains));
+                    false,
+                    role.CompanyId,
+                    role.CompanyName);
             })
             .ToArray();
     }
 
-    private sealed record RoleProjection(Guid Id, string Name);
+    private sealed record RoleProjection(Guid Id, Guid CompanyId, string CompanyName, string Name);
 
     private sealed record PermissionProjection(Guid RoleId, string Permission);
 }

@@ -15,10 +15,10 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
     private const string ValidPassword = "correct horse battery staple";
 
     [Fact]
-    public async Task RequiredUserEnrollsWithRealIdentityProviderBeforeApplicationSessionExists()
+    public async Task AdministratorRequiredUserEnrollsBeforeApplicationSessionExists()
     {
         var user = await CreateUserAsync();
-        await factory.GrantPermissionAsync(user.Id, Permissions.User.Manage);
+        await ConfigureAuthenticatorMfaAsync(user.Id);
         using var client = factory.CreateSecureClient();
 
         var login = await LoginAsync(client, user.Email!);
@@ -217,7 +217,7 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
     }
 
     [Fact]
-    public async Task NewlyRequiredPermissionInvalidatesPasswordOnlyApplicationSession()
+    public async Task NewlyGrantedPermissionDoesNotOverrideAdministratorMfaSetting()
     {
         var user = await CreateUserAsync();
         using var client = factory.CreateSecureClient();
@@ -226,7 +226,7 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
 
         await factory.GrantPermissionAsync(user.Id, Permissions.User.Manage);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
     }
 
     [Fact]
@@ -345,6 +345,18 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
             ?? throw new InvalidOperationException("The expected test user does not exist.");
         user.RequiresMfa = true;
         user.MfaMethod = CareComply.Application.Abstractions.Identity.UserMfaMethod.Email;
+        user.TwoFactorEnabled = false;
+        Assert.True((await userManager.UpdateAsync(user)).Succeeded);
+    }
+
+    private async Task ConfigureAuthenticatorMfaAsync(Guid userId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString())
+            ?? throw new InvalidOperationException("The expected test user does not exist.");
+        user.RequiresMfa = true;
+        user.MfaMethod = CareComply.Application.Abstractions.Identity.UserMfaMethod.Authenticator;
         user.TwoFactorEnabled = false;
         Assert.True((await userManager.UpdateAsync(user)).Succeeded);
     }

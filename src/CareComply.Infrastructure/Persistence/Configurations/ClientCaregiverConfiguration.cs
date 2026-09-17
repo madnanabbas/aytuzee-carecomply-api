@@ -12,6 +12,7 @@ internal sealed class ClientCaregiverConfiguration : IEntityTypeConfiguration<Cl
         entity.ToTable("ClientCaregivers"); entity.HasKey(x => x.Id);
         entity.Property(x => x.Services).HasMaxLength(ClientCaregiver.MaximumServicesLength).IsRequired();
         entity.Property(x => x.Notes).HasMaxLength(ClientCaregiver.MaximumNotesLength).IsRequired();
+        entity.Property(x => x.RelationshipToClient).HasMaxLength(ClientCaregiver.MaximumRelationshipLength).IsRequired();
         entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(16).IsUnicode(false);
         entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(16).IsUnicode(false);
         entity.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();

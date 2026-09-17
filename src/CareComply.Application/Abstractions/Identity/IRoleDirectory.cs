@@ -9,4 +9,6 @@ public sealed record RoleDirectoryItem(
     Guid Id,
     string Name,
     IReadOnlyList<string> Permissions,
-    bool RequiresMfa);
+    bool RequiresMfa,
+    Guid CompanyId = default,
+    string CompanyName = "");

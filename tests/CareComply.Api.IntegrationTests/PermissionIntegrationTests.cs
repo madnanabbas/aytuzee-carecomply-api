@@ -50,8 +50,12 @@ public sealed class PermissionIntegrationTests(SqlServerApiFactory factory)
             .OrderBy(permission => permission.Id)
             .Select(permission => new { permission.Id, permission.Name })
             .ToArrayAsync();
-        Assert.Equal(Enumerable.Range(1, 48), seeded.Select(permission => permission.Id));
-        Assert.Equal(Permissions.All, seeded.Select(permission => permission.Name));
+        Assert.Equal(
+            Enumerable.Range(1, Permissions.All.Count),
+            seeded.Select(permission => permission.Id));
+        Assert.Equal(
+            Permissions.All.Order(StringComparer.Ordinal),
+            seeded.Select(permission => permission.Name).Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -292,7 +296,11 @@ public sealed class PermissionIntegrationTests(SqlServerApiFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
-        var role = new ApplicationRole { Name = $"TestRole-{Guid.NewGuid():N}" };
+        var role = new ApplicationRole
+        {
+            CompanyId = SqlServerApiFactory.DefaultCompanyId,
+            Name = $"TestRole-{Guid.NewGuid():N}"
+        };
         var result = await roleManager.CreateAsync(role);
         Assert.True(result.Succeeded, string.Join(", ", result.Errors.Select(error => error.Code)));
         return role;

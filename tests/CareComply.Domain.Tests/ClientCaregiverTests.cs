@@ -15,6 +15,23 @@ public sealed class ClientCaregiverTests
     }
 
     [Fact]
+    public void CreateAndEditPreserveRelationshipAndLivingArrangement()
+    {
+        var value = ClientCaregiver.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            ClientCaregiverType.Primary, true, "PCA", new DateOnly(2026, 9, 1), null,
+            null, Guid.NewGuid(), Now, " Child ", true);
+
+        Assert.Equal("Child", value.RelationshipToClient);
+        Assert.True(value.LivesWithClient);
+
+        value.Update(ClientCaregiverType.Backup, false, "PCA", new DateOnly(2026, 9, 1),
+            null, null, Now.AddMinutes(1), "Professional caregiver", false);
+
+        Assert.Equal("Professional caregiver", value.RelationshipToClient);
+        Assert.False(value.LivesWithClient);
+    }
+
+    [Fact]
     public void EndPreservesStatusWhenHistoricalDetailsAreCorrected()
     {
         var value = Create(); value.End(new DateOnly(2026, 9, 4), Now.AddMinutes(1));

@@ -34,7 +34,7 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
         if (request.Type == ClientCaregiverType.Primary && !request.EndDate.HasValue && await HasOtherPrimary(request.ClientId, null, ct))
             return new(ClientCaregiverMutationStatus.PrimaryConflict);
         var entity = ClientCaregiver.Create(Guid.CreateVersion7(), request.ClientId, request.UserId, request.Type,
-            request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes, request.ActorUserId, request.NowUtc);
+            request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes, request.ActorUserId, request.NowUtc, request.RelationshipToClient, request.LivesWithClient);
         context.ClientCaregivers.Add(entity);
         try { await context.SaveChangesAsync(ct); }
         catch (DbUpdateException) { return new(ClientCaregiverMutationStatus.Conflict); }
@@ -48,7 +48,7 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
         if (!VersionMatches(entity.RowVersion, request.EditorVersion)) return new(ClientCaregiverMutationStatus.Conflict);
         if (request.Type == ClientCaregiverType.Primary && !request.EndDate.HasValue && await HasOtherPrimary(request.ClientId, entity.Id, ct))
             return new(ClientCaregiverMutationStatus.PrimaryConflict);
-        try { entity.Update(request.Type, request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes, request.NowUtc); }
+        try { entity.Update(request.Type, request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes, request.NowUtc, request.RelationshipToClient, request.LivesWithClient); }
         catch (InvalidOperationException) { return new(ClientCaregiverMutationStatus.InvalidState); }
         return await Save(entity, ct);
     }
@@ -77,7 +77,7 @@ internal sealed class EfClientCaregiverStore(CareComplyDbContext context, TimePr
         user is null ? "Unknown user" : Name(user.FirstName, user.LastName), user is null ? "Caregiver" : Title(user), user?.PhoneNumber ?? string.Empty, user?.Email ?? string.Empty,
         x.Type, x.IsPreferred, x.Services, x.StartDate, x.EndDate, x.Notes,
         x.Status == ClientCaregiverStatus.Ended || x.EndDate < today ? ClientCaregiverStatus.Ended : ClientCaregiverStatus.Active,
-        Version(x.RowVersion));
+        Version(x.RowVersion), x.RelationshipToClient, x.LivesWithClient);
     private static string Title(Identity.ApplicationUser user) => string.IsNullOrWhiteSpace(user.JobTitle) ? "Caregiver" : user.JobTitle;
     private static string Name(string first, string last) => (first + " " + last).Trim();
     private static string Version(byte[] value) => Convert.ToHexString(SHA256.HashData(value));

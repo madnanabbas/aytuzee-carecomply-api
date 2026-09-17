@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using CareComply.Infrastructure.Tenancy;
+using CareComply.Domain.Companies;
 
 namespace CareComply.Infrastructure.Identity.Staging;
 
@@ -45,6 +47,8 @@ public sealed class StagingIdentityInitializer(
             await EnsureRolesAsync(
                 permissionIds,
                 cancellationToken);
+
+        await EnsureDemoLocationsAsync(cancellationToken);
 
         foreach (var fixture in UserFixtures)
         {
@@ -111,6 +115,7 @@ public sealed class StagingIdentityInitializer(
                 role = new ApplicationRole
                 {
                     Name = fixture.Name,
+                    CompanyId = TenantDefaults.DefaultCompanyId,
                 };
 
                 EnsureSucceeded(
@@ -169,6 +174,28 @@ public sealed class StagingIdentityInitializer(
         return roles;
     }
 
+    private async Task EnsureDemoLocationsAsync(CancellationToken cancellationToken)
+    {
+        var companyIds = await context.Companies.Where(company => company.IsActive)
+            .Select(company => company.Id).ToArrayAsync(cancellationToken);
+        var existingLocations = await context.CompanyLocations
+            .Where(location => companyIds.Contains(location.CompanyId))
+            .Select(location => new { location.CompanyId, location.Name })
+            .ToArrayAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+
+        foreach (var companyId in companyIds)
+        {
+            var existing = existingLocations.Where(location => location.CompanyId == companyId)
+                .Select(location => location.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in DemoLocationFixtures.Names.Where(name => !existing.Contains(name)))
+                context.CompanyLocations.Add(CompanyLocation.Create(
+                    Guid.CreateVersion7(), companyId, name, false, now));
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task EnsureUserAsync(
         StagingUserFixture fixture,
         string password,
@@ -185,6 +212,8 @@ public sealed class StagingIdentityInitializer(
 
             user = new ApplicationUser
             {
+                CompanyId = fixture.RoleName == "System Administrator" ? null : TenantDefaults.DefaultCompanyId,
+                IsPlatformAdministrator = fixture.RoleName == "System Administrator",
                 Email = fixture.Email,
                 UserName = fixture.Email,
                 EmailConfirmed = true,
@@ -235,6 +264,19 @@ public sealed class StagingIdentityInitializer(
                     user,
                     role.Name!),
                 $"assign the staging role for '{fixture.Email}'");
+        }
+
+        if (!user.IsPlatformAdministrator)
+        {
+            var mainLocationId = await context.CompanyLocations
+                .Where(location => location.CompanyId == user.CompanyId && location.IsMain)
+                .Select(location => location.Id)
+                .SingleAsync();
+            if (!await context.UserLocations.AnyAsync(x => x.UserId == user.Id && x.LocationId == mainLocationId))
+            {
+                context.UserLocations.Add(new ApplicationUserLocation { UserId = user.Id, LocationId = mainLocationId });
+                await context.SaveChangesAsync();
+            }
         }
     }
 
@@ -322,9 +364,15 @@ public sealed class StagingIdentityInitializer(
                 Permissions.ClientDocument.Archive,
 
                 Permissions.Employee.View,
+                Permissions.Employee.Create,
+                Permissions.Employee.Edit,
+                Permissions.Employee.Archive,
 
                 Permissions.EmployeeDocument.View,
+                Permissions.EmployeeDocument.Upload,
                 Permissions.EmployeeDocument.Download,
+                Permissions.EmployeeDocument.Replace,
+                Permissions.EmployeeDocument.Archive,
 
                 Permissions.Training.View,
                 Permissions.Training.Create,

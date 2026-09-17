@@ -29,7 +29,7 @@ public sealed class RoleManagementController(ISender sender) : ControllerBase
         }
 
         return Ok((result.Roles ?? []).Select(role => new ManagedRoleListItemResponse(
-            role.Id, role.Name, role.Description, role.AssignedUserCount, role.PermissionCount, role.EditorVersion)));
+            role.Id, role.CompanyId, role.CompanyName, role.Name, role.Description, role.AssignedUserCount, role.PermissionCount, role.EditorVersion)));
     }
 
     [HttpGet("roles/{roleId:guid}")]
@@ -81,6 +81,7 @@ public sealed class RoleManagementController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new CreateManagedRoleCommand(
+            request.CompanyId,
             request.Name,
             request.Description,
             request.PermissionIds ?? []), cancellationToken);
@@ -149,6 +150,8 @@ public sealed class RoleManagementController(ISender sender) : ControllerBase
 
     private static ManagedRoleDetailsResponse MapRole(RoleManagementDetails role) => new(
         role.Id,
+        role.CompanyId,
+        role.CompanyName,
         role.Name,
         role.Description,
         role.PermissionIds,

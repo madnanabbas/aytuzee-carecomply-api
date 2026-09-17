@@ -28,6 +28,7 @@ internal static class NavigationSeedData
         new(13, 5, 11, "roles", "Roles", "/access-control/roles", "roles", 20, true),
         new(14, 5, 11, "permissions", "Permissions", "/access-control/permissions", "permissions", 30, true),
         new(15, 5, 11, "audit-logs", "Audit Logs", "/access-control/audit-logs", "audit-logs", 40, true),
+        new(16, 5, null, "companies", "Companies", "/access-control/companies", "companies", 5, true),
     ];
 
     public static IReadOnlyList<NavigationFeaturePermissionSeed> FeaturePermissions { get; } =
@@ -57,6 +58,7 @@ internal static class NavigationSeedData
         new(13, 44),
         new(14, 46),
         new(15, 48),
+        new(16, 81),
     ];
 }
 

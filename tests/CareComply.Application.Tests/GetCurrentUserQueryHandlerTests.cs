@@ -26,8 +26,15 @@ public sealed class GetCurrentUserQueryHandlerTests
     public async Task AuthenticatedActorReturnsCurrentUser()
     {
         var userId = Guid.CreateVersion7();
+        var companyId = Guid.CreateVersion7();
         var reader = new StubIdentityUserReader(
-            new IdentityUserSnapshot(userId, "person@example.test", "Test Person"));
+            new IdentityUserSnapshot(
+                userId,
+                "person@example.test",
+                "Test Person",
+                companyId,
+                "Contoso Care",
+                false));
         var handler = new GetCurrentUserQueryHandler(
             new StubCurrentActor(true, userId),
             reader,
@@ -40,6 +47,9 @@ public sealed class GetCurrentUserQueryHandlerTests
         Assert.Equal(userId, result.Id);
         Assert.Equal("person@example.test", result.Email);
         Assert.Equal("Test Person", result.DisplayName);
+        Assert.Equal(companyId, result.CompanyId);
+        Assert.Equal("Contoso Care", result.CompanyName);
+        Assert.False(result.IsPlatformAdministrator);
         Assert.Equal(["Client.View"], result.Permissions);
     }
 

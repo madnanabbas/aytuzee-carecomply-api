@@ -27,12 +27,12 @@ public sealed class ClientCaregiversController(ISender sender) : ControllerBase
     [HttpPost]
     [HasPermission(Permissions.ClientCaregiver.Create)]
     public async Task<ActionResult<ClientCaregiverResponse>> Create(Guid clientId, SaveClientCaregiverRequest request, CancellationToken ct)
-    { if (!ParseType(request.Type, out var type)) return BadType(request.Type); return Mutation(await sender.Send(new CreateClientCaregiverCommand(clientId, request.UserId, type, request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes), ct), true); }
+    { if (!ParseType(request.Type, out var type)) return BadType(request.Type); return Mutation(await sender.Send(new CreateClientCaregiverCommand(clientId, request.UserId, type, request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes, request.RelationshipToClient, request.LivesWithClient), ct), true); }
 
     [HttpPut("{assignmentId:guid}")]
     [HasPermission(Permissions.ClientCaregiver.Edit)]
     public async Task<ActionResult<ClientCaregiverResponse>> Update(Guid clientId, Guid assignmentId, SaveClientCaregiverRequest request, CancellationToken ct)
-    { if (!ParseType(request.Type, out var type)) return BadType(request.Type); return Mutation(await sender.Send(new UpdateClientCaregiverCommand(clientId, assignmentId, type, request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes, request.EditorVersion ?? string.Empty), ct)); }
+    { if (!ParseType(request.Type, out var type)) return BadType(request.Type); return Mutation(await sender.Send(new UpdateClientCaregiverCommand(clientId, assignmentId, type, request.IsPreferred, request.Services, request.StartDate, request.EndDate, request.Notes, request.EditorVersion ?? string.Empty, request.RelationshipToClient, request.LivesWithClient), ct)); }
 
     [HttpPost("{assignmentId:guid}/end")]
     [HasPermission(Permissions.ClientCaregiver.Edit)]
@@ -52,5 +52,5 @@ public sealed class ClientCaregiversController(ISender sender) : ControllerBase
     private ActionResult Auth(AuthorizationFailure value) => value == AuthorizationFailure.Unauthenticated ? Unauthorized() : Forbid();
     private BadRequestObjectResult BadType(string? value) => BadRequest(new ValidationProblemDetails(new Dictionary<string, string[]> { ["type"] = [$"'{value ?? string.Empty}' is invalid. Allowed values: Primary, Backup."] }) { Status = 400, Title = "One or more validation errors occurred.", Type = ProblemTypes.Validation });
     private static bool ParseType(string? value, out ClientCaregiverType type) => Enum.TryParse(value, true, out type) && Enum.IsDefined(type);
-    private static ClientCaregiverResponse Map(ClientCaregiverItem x) => new(x.Id, x.UserId, x.Name, x.Title, x.Phone, x.Email, x.Type.ToString(), x.IsPreferred, x.Services, x.StartDate, x.EndDate, x.Notes, x.Status.ToString(), x.EditorVersion);
+    private static ClientCaregiverResponse Map(ClientCaregiverItem x) => new(x.Id, x.UserId, x.Name, x.Title, x.Phone, x.Email, x.Type.ToString(), x.IsPreferred, x.Services, x.StartDate, x.EndDate, x.Notes, x.Status.ToString(), x.EditorVersion, x.RelationshipToClient, x.LivesWithClient);
 }

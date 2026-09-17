@@ -11,6 +11,9 @@ public interface IUserDirectory
 
 public sealed record UserDirectoryDetails(
     Guid Id,
+    Guid? CompanyId,
+    string? CompanyName,
+    bool IsPlatformAdministrator,
     string FirstName,
     string LastName,
     string DisplayName,
@@ -25,6 +28,7 @@ public sealed record UserDirectoryDetails(
     string EditorVersion)
 {
     public IReadOnlyList<UserDirectoryRole> Roles { get; init; } = [];
+    public IReadOnlyList<Guid> LocationIds { get; init; } = [];
 }
 
 public sealed record UserDirectoryRequest(

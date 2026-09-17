@@ -7,16 +7,19 @@ public sealed class ClientCaregiver
 {
     public const int MaximumServicesLength = 500;
     public const int MaximumNotesLength = 1000;
+    public const int MaximumRelationshipLength = 60;
     private ClientCaregiver() { }
 
     public static ClientCaregiver Create(Guid id, Guid clientId, Guid userId, ClientCaregiverType type,
         bool isPreferred, string? services, DateOnly startDate, DateOnly? endDate, string? notes,
-        Guid actorUserId, DateTimeOffset nowUtc)
+        Guid actorUserId, DateTimeOffset nowUtc, string? relationshipToClient = null, bool? livesWithClient = null)
     {
         ValidateIds(id, clientId, userId, actorUserId); ValidateDates(startDate, endDate); ValidateUtc(nowUtc);
         return new ClientCaregiver { Id = id, ClientId = clientId, UserId = userId, Type = type,
             IsPreferred = isPreferred, Services = Normalize(services, MaximumServicesLength, nameof(services)),
             StartDate = startDate, EndDate = endDate, Notes = Normalize(notes, MaximumNotesLength, nameof(notes)),
+            RelationshipToClient = Normalize(relationshipToClient, MaximumRelationshipLength, nameof(relationshipToClient)),
+            LivesWithClient = livesWithClient,
             Status = ClientCaregiverStatus.Active,
             CreatedByUserId = actorUserId, CreatedAtUtc = nowUtc, UpdatedAtUtc = nowUtc };
     }
@@ -30,6 +33,8 @@ public sealed class ClientCaregiver
     public DateOnly StartDate { get; private set; }
     public DateOnly? EndDate { get; private set; }
     public string Notes { get; private set; } = string.Empty;
+    public string RelationshipToClient { get; private set; } = string.Empty;
+    public bool? LivesWithClient { get; private set; }
     public ClientCaregiverStatus Status { get; private set; }
     public Guid CreatedByUserId { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -37,12 +42,14 @@ public sealed class ClientCaregiver
     public byte[] RowVersion { get; private set; } = [];
 
     public void Update(ClientCaregiverType type, bool isPreferred, string? services, DateOnly startDate,
-        DateOnly? endDate, string? notes, DateTimeOffset nowUtc)
+        DateOnly? endDate, string? notes, DateTimeOffset nowUtc, string? relationshipToClient = null, bool? livesWithClient = null)
     {
         ValidateDates(startDate, endDate); ValidateUtc(nowUtc);
         var currentStatus = Status;
         Type = type; IsPreferred = isPreferred; Services = Normalize(services, MaximumServicesLength, nameof(services));
         StartDate = startDate; EndDate = endDate; Notes = Normalize(notes, MaximumNotesLength, nameof(notes));
+        RelationshipToClient = Normalize(relationshipToClient, MaximumRelationshipLength, nameof(relationshipToClient));
+        LivesWithClient = livesWithClient;
         Status = currentStatus; UpdatedAtUtc = nowUtc;
     }
 

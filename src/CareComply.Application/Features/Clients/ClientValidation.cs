@@ -97,7 +97,9 @@ internal sealed class ClientContactInputValidator : AbstractValidator<ClientCont
         RuleFor(input => input.PostalCode)
             .MaximumLength(Client.MaximumPostalCodeLength);
         RuleFor(input => input.County).MaximumLength(Client.MaximumCountyLength);
-        RuleFor(input => input.Country).MaximumLength(Client.MaximumCountryLength);
+        RuleFor(input => input.Country)
+            .Must(country => string.Equals(country, "United States", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("Country must be United States.");
     }
 }
 

@@ -41,6 +41,10 @@ public static class Permissions
     public static class ClientServiceAgreement { public const string View = "ClientServiceAgreement.View"; public const string Create = "ClientServiceAgreement.Create"; public const string Edit = "ClientServiceAgreement.Edit"; }
     public static class ClientCaregiver { public const string View = "ClientCaregiver.View"; public const string Create = "ClientCaregiver.Create"; public const string Edit = "ClientCaregiver.Edit"; }
     public static class ClientResponsibleParty { public const string View = "ClientResponsibleParty.View"; public const string Create = "ClientResponsibleParty.Create"; public const string Edit = "ClientResponsibleParty.Edit"; }
+    public static class ClientContact { public const string View = "ClientContact.View"; public const string Create = "ClientContact.Create"; public const string Edit = "ClientContact.Edit"; }
+    public static class ClientCareCoordinator { public const string View = "ClientCareCoordinator.View"; public const string Create = "ClientCareCoordinator.Create"; public const string Edit = "ClientCareCoordinator.Edit"; }
+    public static class ClientConsultationProvider { public const string View = "ClientConsultationProvider.View"; public const string Create = "ClientConsultationProvider.Create"; public const string Edit = "ClientConsultationProvider.Edit"; }
+    public static class ClientPhysician { public const string View = "ClientPhysician.View"; public const string Create = "ClientPhysician.Create"; public const string Edit = "ClientPhysician.Edit"; }
     public static class ClientHospitalization { public const string View = "ClientHospitalization.View"; public const string Create = "ClientHospitalization.Create"; public const string Edit = "ClientHospitalization.Edit"; }
     public static class ClientVisit { public const string View = "ClientVisit.View"; public const string Create = "ClientVisit.Create"; public const string Edit = "ClientVisit.Edit"; }
     public static class ClientForm { public const string View = "ClientForm.View"; public const string Create = "ClientForm.Create"; public const string Edit = "ClientForm.Edit"; }
@@ -145,6 +149,14 @@ public static class Permissions
         public const string View = "AuditLog.View";
     }
 
+    public static class Company
+    {
+        public const string View = "Company.View";
+        public const string Create = "Company.Create";
+        public const string Edit = "Company.Edit";
+        public const string Delete = "Company.Delete";
+    }
+
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(
         [
             Dashboard.View,
@@ -163,6 +175,10 @@ public static class Permissions
             ClientServiceAgreement.View, ClientServiceAgreement.Create, ClientServiceAgreement.Edit,
             ClientCaregiver.View, ClientCaregiver.Create, ClientCaregiver.Edit,
             ClientResponsibleParty.View, ClientResponsibleParty.Create, ClientResponsibleParty.Edit,
+            ClientContact.View, ClientContact.Create, ClientContact.Edit,
+            ClientCareCoordinator.View, ClientCareCoordinator.Create, ClientCareCoordinator.Edit,
+            ClientConsultationProvider.View, ClientConsultationProvider.Create, ClientConsultationProvider.Edit,
+            ClientPhysician.View, ClientPhysician.Create, ClientPhysician.Edit,
             ClientHospitalization.View, ClientHospitalization.Create, ClientHospitalization.Edit,
             ClientVisit.View, ClientVisit.Create, ClientVisit.Edit,
             ClientForm.View, ClientForm.Create, ClientForm.Edit,
@@ -211,6 +227,10 @@ public static class Permissions
             Permission.View,
             Permission.Manage,
             AuditLog.View,
+            Company.View,
+            Company.Create,
+            Company.Edit,
+            Company.Delete,
         ]);
 
     private static readonly HashSet<string> DefinedPermissions =

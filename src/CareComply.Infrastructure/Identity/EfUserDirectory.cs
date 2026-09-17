@@ -2,25 +2,30 @@ using CareComply.Application.Abstractions.Identity;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using CareComply.Infrastructure.Authorization;
+using CareComply.Application.Abstractions.Tenancy;
 
 namespace CareComply.Infrastructure.Identity;
 
 internal sealed class EfUserDirectory(
     CareComplyDbContext context,
-    IMfaRequirementEvaluator mfaRequirementEvaluator,
-    IOptions<MfaPolicyOptions> mfaOptions) : IUserDirectory
+    ITenantScopeAccessor tenantScopeAccessor) : IUserDirectory
 {
     public async Task<UserDirectoryDetails?> GetByIdAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return null;
+
         var user = await context.Users
             .AsNoTracking()
-            .Where(candidate => candidate.Id == userId)
+            .Where(candidate => candidate.Id == userId
+                && (tenant.IsPlatformAdministrator || candidate.CompanyId == tenant.CompanyId))
             .Select(candidate => new UserDetailsProjection(
                 candidate.Id,
+                candidate.CompanyId,
+                candidate.IsPlatformAdministrator ? null : context.Companies.Where(c => c.Id == candidate.CompanyId).Select(c => c.Name).SingleOrDefault(),
+                candidate.IsPlatformAdministrator,
                 candidate.FirstName,
                 candidate.LastName,
                 candidate.Email ?? string.Empty,
@@ -46,24 +51,22 @@ internal sealed class EfUserDirectory(
                 select new UserDirectoryRole(role.Id, role.Name ?? string.Empty))
             .ToArrayAsync(cancellationToken);
 
-        var isMfaRequiredByPermissions = await mfaRequirementEvaluator
-            .IsRequiredByPermissionsAsync(user.Id, cancellationToken);
-        return MapDetails(user, isMfaRequiredByPermissions) with { Roles = roles };
+        var locationIds = user.IsPlatformAdministrator ? [] : await context.UserLocations.AsNoTracking()
+            .Where(x => x.UserId == user.Id).Select(x => x.LocationId).ToArrayAsync(cancellationToken);
+        return MapDetails(user) with { Roles = roles, LocationIds = locationIds };
     }
     public async Task<UserDirectoryPage> ListAsync(
         UserDirectoryRequest request,
         CancellationToken cancellationToken)
     {
-        var users = context.Users.AsNoTracking();
-        var mfaRequiredUserIds =
-            from userRole in context.Set<IdentityUserRole<Guid>>().AsNoTracking()
-            join rolePermission in context.Set<RolePermission>().AsNoTracking()
-                on userRole.RoleId equals rolePermission.RoleId
-            join permission in context.Set<Permission>().AsNoTracking()
-                on rolePermission.PermissionId equals permission.Id
-            where mfaOptions.Value.RequiredPermissions.Contains(permission.Name)
-            select userRole.UserId;
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return new([], [], request.PageNumber, request.PageSize, 0);
 
+        IQueryable<ApplicationUser> users = context.Users.AsNoTracking();
+        if (!tenant.IsPlatformAdministrator)
+        {
+            users = users.Where(user => user.CompanyId == tenant.CompanyId);
+        }
         if (request.Search is { } search)
         {
             users = users.Where(user =>
@@ -90,12 +93,10 @@ internal sealed class EfUserDirectory(
             users = isEnabled
                 ? users.Where(user =>
                     user.TwoFactorEnabled
-                    || user.RequiresMfa
-                    || mfaRequiredUserIds.Contains(user.Id))
+                    || user.RequiresMfa)
                 : users.Where(user =>
                     !user.TwoFactorEnabled
-                    && !user.RequiresMfa
-                    && !mfaRequiredUserIds.Contains(user.Id));
+                    && !user.RequiresMfa);
         }
 
         var totalCount = await users.CountAsync(cancellationToken);
@@ -110,8 +111,7 @@ internal sealed class EfUserDirectory(
                 user.Email ?? string.Empty,
                 user.IsActive,
                 user.TwoFactorEnabled
-                    || user.RequiresMfa
-                    || mfaRequiredUserIds.Contains(user.Id)))
+                    || user.RequiresMfa))
             .ToArrayAsync(cancellationToken);
 
         var userIds = pageUsers.Select(user => user.Id).ToArray();
@@ -151,6 +151,7 @@ internal sealed class EfUserDirectory(
 
         var availableRoles = await context.Roles
             .AsNoTracking()
+            .Where(role => tenant.IsPlatformAdministrator || role.CompanyId == tenant.CompanyId)
             .OrderBy(role => role.Name)
             .Select(role => new UserDirectoryRole(role.Id, role.Name ?? string.Empty))
             .ToArrayAsync(cancellationToken);
@@ -220,6 +221,9 @@ internal sealed class EfUserDirectory(
 
     private sealed record UserDetailsProjection(
         Guid Id,
+        Guid? CompanyId,
+        string? CompanyName,
+        bool IsPlatformAdministrator,
         string FirstName,
         string LastName,
         string Email,
@@ -231,9 +235,11 @@ internal sealed class EfUserDirectory(
         string ConcurrencyStamp);
 
     private static UserDirectoryDetails MapDetails(
-        UserDetailsProjection user,
-        bool isMfaRequiredByPermissions) => new(
+        UserDetailsProjection user) => new(
             user.Id,
+            user.CompanyId,
+            user.CompanyName,
+            user.IsPlatformAdministrator,
             user.FirstName,
             user.LastName,
             string.Join(' ', user.FirstName, user.LastName).Trim(),
@@ -242,8 +248,8 @@ internal sealed class EfUserDirectory(
             user.IsActive,
             user.IsMfaEnabled,
             user.RequiresMfa,
-            user.RequiresMfa || isMfaRequiredByPermissions,
-            isMfaRequiredByPermissions,
+            user.RequiresMfa,
+            false,
             user.MfaMethod,
             IdentityEditorVersion.Create(user.ConcurrencyStamp));
 }
