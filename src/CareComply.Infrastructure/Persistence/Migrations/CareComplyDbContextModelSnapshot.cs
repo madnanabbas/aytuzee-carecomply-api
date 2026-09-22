@@ -224,6 +224,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<Guid?>("SupervisorUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -2317,6 +2320,29 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly?>("PayerEffectiveTo")
                         .HasColumnType("date");
+
+                    b.Property<bool>("InsuranceAffiliationRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("EmployeeBackgroundInformationJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmployeeTrainingInformationJson")
+                        .IsRequired()
+                        .HasMaxLength(32000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmployeeContactsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PayerAffiliationsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PayerGroupNumber")
                         .IsRequired()

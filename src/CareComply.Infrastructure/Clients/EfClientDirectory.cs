@@ -223,7 +223,8 @@ internal sealed class EfClientDirectory(
             client.CreatedAtUtc,
             client.UpdatedAtUtc,
             ClientEditorVersion.Create(client.RowVersion),
-            client.LocationId);
+            client.LocationId,
+            client.SupervisorUserId);
     }
 
     private static IQueryable<Client> ApplySort(

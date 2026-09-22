@@ -97,7 +97,8 @@ public sealed record ClientDirectoryDetails(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string EditorVersion,
-    Guid LocationId);
+    Guid LocationId,
+    Guid? SupervisorUserId);
 
 public sealed record ClientDirectoryAdditionalProfile(
     ClientProgramType ProgramType,

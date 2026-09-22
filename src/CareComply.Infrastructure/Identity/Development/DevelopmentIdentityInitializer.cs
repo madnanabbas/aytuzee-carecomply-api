@@ -1,6 +1,7 @@
 using CareComply.Application.Authorization;
 using CareComply.Infrastructure.Authorization;
 using CareComply.Infrastructure.Persistence;
+using CareComply.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -85,7 +86,11 @@ public sealed class DevelopmentIdentityInitializer(
 
             if (role is null)
             {
-                role = new ApplicationRole { Name = fixture.Name };
+                role = new ApplicationRole
+                {
+                    CompanyId = TenantDefaults.DefaultCompanyId,
+                    Name = fixture.Name,
+                };
                 EnsureSucceeded(
                     await roleManager.CreateAsync(role),
                     $"create the development role '{fixture.Name}'");
@@ -129,6 +134,7 @@ public sealed class DevelopmentIdentityInitializer(
             var now = timeProvider.GetUtcNow();
             user = new ApplicationUser
             {
+                CompanyId = TenantDefaults.DefaultCompanyId,
                 Email = fixture.Email,
                 UserName = fixture.Email,
                 EmailConfirmed = true,

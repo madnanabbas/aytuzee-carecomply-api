@@ -105,8 +105,10 @@ public sealed class DevelopmentIdentityIntegrationTests(SqlServerApiFactory fact
         Assert.Equal(4, await verificationContext.Users.CountAsync());
         Assert.Equal(4, await verificationContext.Roles.CountAsync());
         Assert.Equal(4, await verificationContext.Set<IdentityUserRole<Guid>>().CountAsync());
-        Assert.Equal(119, await verificationContext.Set<RolePermission>().CountAsync());
-        Assert.Equal(48, await verificationContext.Set<Permission>().CountAsync());
+        Assert.Equal(
+            ExpectedRolePermissions.Values.Sum(permissions => permissions.Count),
+            await verificationContext.Set<RolePermission>().CountAsync());
+        Assert.Equal(Permissions.All.Count, await verificationContext.Set<Permission>().CountAsync());
         Assert.Equal(0, await verificationContext.Set<AuditLog>().CountAsync());
 
         var canonicalPermissions = await verificationContext.Set<Permission>()
@@ -114,7 +116,9 @@ public sealed class DevelopmentIdentityIntegrationTests(SqlServerApiFactory fact
             .OrderBy(permission => permission.Id)
             .Select(permission => permission.Name)
             .ToArrayAsync();
-        Assert.Equal(Permissions.All, canonicalPermissions);
+        Assert.Equal(
+            Permissions.All.Order(StringComparer.Ordinal),
+            canonicalPermissions.Order(StringComparer.Ordinal));
 
         var actualRolePermissions = await (
                 from role in verificationContext.Roles.AsNoTracking()

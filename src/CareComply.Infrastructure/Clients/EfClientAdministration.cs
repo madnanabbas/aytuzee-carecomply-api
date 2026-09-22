@@ -28,6 +28,9 @@ internal sealed class EfClientAdministration(
             cancellationToken);
         if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
 
+        if (!await ValidSupervisor(request.CareSetup.SupervisorUserId, tenant.CompanyId.Value, location.Id, cancellationToken))
+            return Failed(ClientAdministrationStatus.InvalidState);
+
         var pmiNumber = NormalizeRequired(request.Identity.PmiNumber);
         if (await context.Clients.AsNoTracking().AnyAsync(
                 client => client.CompanyId == tenant.CompanyId && client.PmiNumber == pmiNumber,
@@ -86,6 +89,7 @@ internal sealed class EfClientAdministration(
                 request.InitialStatus == ClientStatus.Discharged ? request.DischargeReason : null,
                 now);
             client.AssignLocation(location.Id, location.Name, now);
+            client.AssignSupervisor(request.CareSetup.SupervisorUserId, now);
             client.ChangeSafety(
                 request.Safety.SafetyMeasures,
                 request.Safety.SpecialEquipment,
@@ -161,6 +165,10 @@ internal sealed class EfClientAdministration(
             cancellationToken);
         if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
 
+        if (!(request.CareSetup.SupervisorUserId == client.SupervisorUserId && location.Id == client.LocationId) &&
+            !await ValidSupervisor(request.CareSetup.SupervisorUserId, client.CompanyId, location.Id, cancellationToken))
+            return Failed(ClientAdministrationStatus.InvalidState);
+
         if (!ClientEditorVersion.Matches(client.RowVersion, request.EditorVersion))
         {
             return Failed(ClientAdministrationStatus.Conflict);
@@ -192,6 +200,7 @@ internal sealed class EfClientAdministration(
         var ssnChanged = !SsnMatches(client.ProtectedSsn, request.Identity.Ssn, sensitiveData);
         var contactChanged = ContactChanged(client, request.Contact);
         var careChanged = CareChanged(client, request.CareSetup, request.Contact.InsuranceProvider)
+            || client.SupervisorUserId != request.CareSetup.SupervisorUserId
             || client.LocationId != location.Id;
         var safetyChanged = SafetyChanged(client, request.Safety);
         var profileChanged = ProfileChanged(profile, request.AdditionalProfile);
@@ -283,6 +292,7 @@ internal sealed class EfClientAdministration(
                     client.DischargeReason,
                     now);
                 client.AssignLocation(location.Id, location.Name, now);
+                client.AssignSupervisor(request.CareSetup.SupervisorUserId, now);
                 changedSections.Add("CareSetup");
             }
 
@@ -506,6 +516,11 @@ internal sealed class EfClientAdministration(
             return false;
         }
     }
+
+    private Task<bool> ValidSupervisor(Guid? supervisorId, Guid companyId, Guid locationId, CancellationToken ct) =>
+        supervisorId is null ? Task.FromResult(true) : context.Users.AsNoTracking().AnyAsync(user =>
+            user.Id == supervisorId && user.CompanyId == companyId && user.IsEmployee && user.IsActive &&
+            context.UserLocations.Any(access => access.UserId == user.Id && access.LocationId == locationId), ct);
 
     private static bool CareChanged(
         Client client,

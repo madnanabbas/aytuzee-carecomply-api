@@ -2,6 +2,7 @@ using CareComply.Api.Authorization;
 using CareComply.Api.Contracts.Clients;
 using CareComply.Api.Errors;
 using CareComply.Application.Abstractions.Clients;
+using CareComply.Application.Abstractions.Tenancy;
 using CareComply.Application.Authorization;
 using CareComply.Application.Features.Clients.Commands.ChangeClientStatus;
 using CareComply.Application.Features.Clients.Commands.CreateClient;
@@ -10,15 +11,37 @@ using CareComply.Application.Features.Clients.Queries.GetClient;
 using CareComply.Application.Features.Clients.Queries.ListClients;
 using CareComply.Application.Features.Clients.Queries.RevealClientSsn;
 using CareComply.Domain.Clients;
+using CareComply.Infrastructure.Persistence;
 using Mediator;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CareComply.Api.Controllers;
 
 [ApiController]
 [Route("api/clients")]
-public sealed class ClientsController(ISender sender) : ControllerBase
+public sealed class ClientsController(ISender sender, CareComplyDbContext db, ITenantScopeAccessor tenants) : ControllerBase
 {
+    [HttpGet("supervisor-candidates")]
+    [HasPermission(Permissions.Client.View)]
+    public async Task<ActionResult<IReadOnlyList<ClientSupervisorCandidateResponse>>> SupervisorCandidates(
+        [FromQuery] Guid locationId, CancellationToken cancellationToken)
+    {
+        var tenant = await tenants.GetAsync(cancellationToken);
+        if (tenant is null) return Unauthorized();
+        var location = await db.CompanyLocations.AsNoTracking().Where(x => x.Id == locationId && x.IsActive)
+            .Select(x => new { x.CompanyId }).SingleOrDefaultAsync(cancellationToken);
+        if (location is null || (!tenant.IsPlatformAdministrator &&
+            (tenant.CompanyId != location.CompanyId || !await db.UserLocations.AnyAsync(x => x.UserId == tenant.UserId && x.LocationId == locationId, cancellationToken))))
+            return NotFound();
+
+        var employees = await db.Users.AsNoTracking().Where(user => user.CompanyId == location.CompanyId && user.IsEmployee && user.IsActive &&
+            db.UserLocations.Any(access => access.UserId == user.Id && access.LocationId == locationId))
+            .OrderBy(user => user.LastName).ThenBy(user => user.FirstName)
+            .Select(user => new ClientSupervisorCandidateResponse(user.Id, user.FirstName + " " + user.LastName, user.JobTitle))
+            .ToArrayAsync(cancellationToken);
+        return Ok(employees);
+    }
     [HttpGet]
     [HasPermission(Permissions.Client.View)]
     public async Task<ActionResult<ClientListResponse>> List(
@@ -406,7 +429,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
         request.Location,
         request.IsOnboarding,
         request.EvvAuthorizedHoursPerWeek,
-        request.LocationId);
+        request.LocationId,
+        request.SupervisorUserId);
 
     private static ClientSafetyInput MapSafety(ClientSafetyRequest request) => new(
         request.SafetyMeasures,
@@ -496,7 +520,8 @@ public sealed class ClientsController(ISender sender) : ControllerBase
             client.EvvAuthorizedHoursPerWeek,
             client.DischargeDate,
             client.DischargeReason,
-            client.LocationId),
+            client.LocationId,
+            client.SupervisorUserId),
         new(
             client.SafetyMeasures,
             client.SpecialEquipment,

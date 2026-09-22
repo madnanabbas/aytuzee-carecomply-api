@@ -25,6 +25,24 @@ public sealed class NavigationIntegrationTests(SqlServerApiFactory factory)
     }
 
     [Fact]
+    public async Task EmployeeViewPermissionShowsEmployeesUnderTheClientsModule()
+    {
+        var user = await factory.CreateUserAsync(
+            $"employee-navigation-{Guid.NewGuid():N}@example.test", ValidPassword);
+        await factory.GrantPermissionAsync(user.Id, Permissions.Employee.View);
+        using var client = factory.CreateSecureClient();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PostAsJsonAsync("/api/auth/login",
+                new { email = user.Email, password = ValidPassword })).StatusCode);
+
+        var modules = await client.GetFromJsonAsync<NavigationModuleResponse[]>("/api/navigation");
+
+        Assert.NotNull(modules);
+        Assert.Contains(modules.SelectMany(module => module.Features), feature =>
+            feature.Key == "employees" && feature.Route == "/employees");
+    }
+
+    [Fact]
     public async Task ReturnsOnlyOrderedDatabaseMetadataAllowedByEffectivePermissions()
     {
         var user = await factory.CreateUserAsync(

@@ -1,6 +1,8 @@
 using CareComply.Infrastructure.Clients;
+using CareComply.Infrastructure.Employees;
 using CareComply.Infrastructure.Companies;
 using CareComply.Application.Abstractions.Clients;
+using CareComply.Application.Abstractions.Employees;
 using CareComply.Application.Abstractions.Companies;
 using CareComply.Application.Abstractions.Auditing;
 using CareComply.Application.Abstractions.Authorization;
@@ -106,9 +108,8 @@ public static class InfrastructureServiceCollectionExtensions
                 options => !string.IsNullOrWhiteSpace(options.Issuer),
                 "The MFA issuer is required.")
             .Validate(
-                options => options.RequiredPermissions.Length > 0
-                    && options.RequiredPermissions.All(Permissions.IsDefined),
-                "MFA required permissions must be non-empty canonical permissions.")
+                options => options.RequiredPermissions.All(Permissions.IsDefined),
+                "MFA permission configuration contains an unknown permission.")
             .ValidateOnStart();
         services.AddScoped<DevelopmentIdentityInitializer>();
         services.AddScoped<DevelopmentWorkforceInitializer>();
@@ -140,6 +141,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<INavigationDirectory, EfNavigationDirectory>();
         services.AddScoped<INavigationAdministration, EfNavigationAdministration>();
         services.AddScoped<IClientDirectory, EfClientDirectory>();
+        services.AddScoped<IEmployeeDirectory, EfEmployeeDirectory>();
+        services.AddScoped<IEmployeeDetailsReader, EfEmployeeDetailsReader>();
         services.AddScoped<IClientAdministration, EfClientAdministration>();
         services.AddScoped<IClientTodoStore, EfClientTodoStore>();
         services.AddScoped<IClientCaregiverStore, EfClientCaregiverStore>();

@@ -56,7 +56,7 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                 name: "UX_Clients_PmiNumber",
                 schema: "dbo",
                 table: "Clients",
-                column: "PmiNumber",
+                columns: new[] { "CompanyId", "PmiNumber" },
                 unique: true);
         }
 

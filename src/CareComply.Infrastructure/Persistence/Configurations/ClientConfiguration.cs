@@ -25,6 +25,7 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.HasKey(client => client.Id).HasName("PK_Clients");
         entity.Property(client => client.Id).ValueGeneratedNever();
         entity.Property(client => client.CompanyId).IsRequired();
+        entity.Property(client => client.SupervisorUserId);
         entity.Property(client => client.FirstName).HasMaxLength(Client.MaximumNameLength).IsRequired();
         entity.Property(client => client.MiddleName).HasMaxLength(Client.MaximumNameLength).IsRequired();
         entity.Property(client => client.LastName).HasMaxLength(Client.MaximumNameLength).IsRequired();

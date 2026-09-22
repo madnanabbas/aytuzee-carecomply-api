@@ -35,7 +35,10 @@ public sealed record ClientCareSetupRequest(
     string? Location,
     bool IsOnboarding,
     decimal? EvvAuthorizedHoursPerWeek,
-    Guid? LocationId = null);
+    Guid? LocationId = null,
+    Guid? SupervisorUserId = null);
+
+public sealed record ClientSupervisorCandidateResponse(Guid Id, string Name, string JobTitle);
 
 public sealed record ClientSafetyRequest(
     string? SafetyMeasures,
@@ -168,7 +171,8 @@ public sealed record ClientCareSetupResponse(
     decimal? EvvAuthorizedHoursPerWeek,
     DateOnly? DischargeDate,
     string DischargeReason,
-    Guid LocationId);
+    Guid LocationId,
+    Guid? SupervisorUserId);
 
 public sealed record ClientSafetyResponse(
     string SafetyMeasures,

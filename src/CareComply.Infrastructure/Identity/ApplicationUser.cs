@@ -99,6 +99,11 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     public DateOnly? PayerEffectiveFrom { get; set; }
     public DateOnly? PayerEffectiveTo { get; set; }
     public string PayerPhone { get; set; } = string.Empty;
+    public bool InsuranceAffiliationRequired { get; set; }
+    public string PayerAffiliationsJson { get; set; } = "[]";
+    public string EmployeeBackgroundInformationJson { get; set; } = "{}";
+    public string EmployeeTrainingInformationJson { get; set; } = "{}";
+    public string EmployeeContactsJson { get; set; } = "[]";
     public bool AllowAggregator { get; set; }
     public bool OverrideRestriction { get; set; }
     public bool EvvOnly { get; set; }

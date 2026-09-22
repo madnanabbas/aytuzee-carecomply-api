@@ -71,6 +71,10 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
         entity.Property(user => user.PayerGroupNumber).HasMaxLength(100).IsRequired();
         entity.Property(user => user.PayerPlanName).HasMaxLength(200).IsRequired();
         entity.Property(user => user.PayerPhone).HasMaxLength(32).IsRequired();
+        entity.Property(user => user.PayerAffiliationsJson).HasMaxLength(16000).IsRequired();
+        entity.Property(user => user.EmployeeBackgroundInformationJson).HasMaxLength(16000).IsRequired();
+        entity.Property(user => user.EmployeeTrainingInformationJson).HasMaxLength(32000).IsRequired();
+        entity.Property(user => user.EmployeeContactsJson).HasMaxLength(16000).IsRequired();
         entity.Property(user => user.EvvEmail).HasMaxLength(320).IsRequired();
         entity.Property(user => user.EvvPasswordProtected).HasMaxLength(1024).IsRequired();
         entity.Property(user => user.IvrPinProtected).HasMaxLength(1024).IsRequired();

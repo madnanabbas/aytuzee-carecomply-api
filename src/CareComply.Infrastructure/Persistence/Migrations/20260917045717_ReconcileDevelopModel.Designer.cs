@@ -238,7 +238,7 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("LocationId");
 
-                    b.HasIndex("PmiNumber")
+                    b.HasIndex("CompanyId", "PmiNumber")
                         .IsUnique()
                         .HasDatabaseName("UX_Clients_PmiNumber");
 
