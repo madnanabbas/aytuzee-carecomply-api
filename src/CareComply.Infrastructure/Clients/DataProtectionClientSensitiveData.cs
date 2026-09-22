@@ -14,7 +14,7 @@ internal sealed class DataProtectionClientSensitiveData(
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector(
         "CareComply.Client.Ssn.v1");
 
-    public string Protect(string ssn) => protector.Protect(ssn);
+    public string Protect(string ssn) => protector.Protect(ssn); 
 
     public string Unprotect(string protectedSsn) => protector.Unprotect(protectedSsn);
 
