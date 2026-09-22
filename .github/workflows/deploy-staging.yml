@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - staging
+      - develop
 
   workflow_dispatch:
 
@@ -31,13 +32,13 @@ jobs:
         uses: actions/checkout@v4
 
       # -------------------------------------------------------
-      # Checkout the private Angular staging repository
+      # Checkout the matching Angular branch for develop pushes; otherwise staging.
       # -------------------------------------------------------
-      - name: Checkout Angular staging repository
+      - name: Checkout Angular repository
         uses: actions/checkout@v4
         with:
           repository: madnanabbas/aytuzee-carecomply
-          ref: staging
+          ref: ${{ github.event_name == 'push' && github.ref_name == 'develop' && 'develop' || 'staging' }}
           token: ${{ secrets.CARECOMPLY_FRONTEND_READ_TOKEN }}
           path: frontend
           persist-credentials: false
