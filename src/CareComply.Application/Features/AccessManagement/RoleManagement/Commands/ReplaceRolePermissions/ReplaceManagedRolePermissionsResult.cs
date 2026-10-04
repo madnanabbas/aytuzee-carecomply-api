@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.RoleManagement.Comman
 public sealed record ReplaceManagedRolePermissionsResult(
     RolePermissionMutationResult? Mutation,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<ReplaceManagedRolePermissionsResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString() ?? Mutation?.Status.ToString() ?? "Unavailable";
     public static ReplaceManagedRolePermissionsResult Succeeded(RolePermissionMutationResult mutation) => new(mutation, null);

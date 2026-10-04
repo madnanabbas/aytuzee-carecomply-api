@@ -19,6 +19,10 @@ internal sealed class ClientCaregiverConfiguration : IEntityTypeConfiguration<Cl
         entity.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne<ClientGuestInvitation>().WithMany().HasForeignKey(x => x.CreatedByGuestInvitationId).OnDelete(DeleteBehavior.Restrict);
+        entity.ToTable(table => table.HasCheckConstraint(
+            "CK_ClientCaregivers_Creator",
+            "([CreatedByUserId] IS NULL AND [CreatedByGuestInvitationId] IS NOT NULL) OR ([CreatedByUserId] IS NOT NULL AND [CreatedByGuestInvitationId] IS NULL)"));
         entity.HasIndex(x => new { x.ClientId, x.Status });
         entity.HasIndex(x => new { x.ClientId, x.UserId }).IsUnique().HasFilter("[Status] = 'Active'");
         entity.HasIndex(x => new { x.ClientId, x.Type }).IsUnique().HasFilter("[Status] = 'Active' AND [Type] = 'Primary'");

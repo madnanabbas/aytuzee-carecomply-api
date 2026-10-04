@@ -4,6 +4,7 @@ using CareComply.Application.Authorization;
 namespace CareComply.Application.Features.AccessManagement.RoleManagement.Commands.UpdateRoleGeneral;
 
 public sealed record UpdateManagedRoleGeneralResult(RoleMutationResult? Mutation, AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<UpdateManagedRoleGeneralResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString() ?? Mutation?.Status.ToString() ?? "Unavailable";
     public static UpdateManagedRoleGeneralResult Succeeded(RoleMutationResult mutation) => new(mutation, null);

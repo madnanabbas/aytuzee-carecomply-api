@@ -129,6 +129,20 @@ if (app.Environment.IsStaging())
 
 app.UseAuthentication();
 
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/public/client-intake")
+        && context.Request.Path != "/api/public/client-intake/redeem"
+        && context.Request.Cookies.TryGetValue(
+            CareComply.Api.Controllers.PublicClientIntakeController.SessionCookieName,
+            out var guestSessionToken))
+    {
+        context.Request.Headers[
+            CareComply.Api.Controllers.PublicClientIntakeController.TokenHeaderName] = guestSessionToken;
+    }
+    await next(context);
+});
+
 app.UseRateLimiter();
 
 app.UseAuthorization();

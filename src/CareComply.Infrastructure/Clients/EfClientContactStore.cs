@@ -12,8 +12,15 @@ internal sealed class EfClientContactStore(CareComplyDbContext db, ITenantScopeA
     public async Task<IReadOnlyList<ClientContactItem>?> ListAsync(Guid clientId, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
+        var client = await db.Clients.AsNoTracking().SingleAsync(value => value.Id == clientId, cancellationToken);
+        return await ListForClientAsync(client, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ClientContactItem>> ListForClientAsync(
+        Client client, CancellationToken cancellationToken)
+    {
         var contacts = await db.ClientContacts.AsNoTracking()
-            .Where(contact => contact.ClientId == clientId && (contact.Type == ClientContactType.General || contact.Type == ClientContactType.Emergency))
+            .Where(contact => contact.ClientId == client.Id && (contact.Type == ClientContactType.General || contact.Type == ClientContactType.Emergency))
             .OrderBy(contact => contact.Name).ToArrayAsync(cancellationToken);
         return contacts.Select(Map).ToArray();
     }
@@ -21,7 +28,14 @@ internal sealed class EfClientContactStore(CareComplyDbContext db, ITenantScopeA
     public async Task<ClientContactItem?> CreateAsync(Guid clientId, SaveClientContact request, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
-        var contact = new ClientContact(Guid.CreateVersion7(), clientId, request.Type, request.Name,
+        var client = await db.Clients.AsNoTracking().SingleAsync(value => value.Id == clientId, cancellationToken);
+        return await CreateForClientAsync(client, request, cancellationToken);
+    }
+
+    public async Task<ClientContactItem> CreateForClientAsync(
+        Client client, SaveClientContact request, CancellationToken cancellationToken)
+    {
+        var contact = new ClientContact(Guid.CreateVersion7(), client.Id, request.Type, request.Name,
             request.Relationship, request.Phone, request.Email, false, request.Type == ClientContactType.Emergency,
             null, null, null);
         contact.UpdateContactDetails(request.Name, request.Relationship, request.Phone, request.Email,
@@ -34,7 +48,14 @@ internal sealed class EfClientContactStore(CareComplyDbContext db, ITenantScopeA
     public async Task<ClientContactItem?> UpdateAsync(Guid clientId, Guid contactId, SaveClientContact request, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
-        var contact = await db.ClientContacts.SingleOrDefaultAsync(row => row.ClientId == clientId && row.Id == contactId
+        var client = await db.Clients.AsNoTracking().SingleAsync(value => value.Id == clientId, cancellationToken);
+        return await UpdateForClientAsync(client, contactId, request, cancellationToken);
+    }
+
+    public async Task<ClientContactItem?> UpdateForClientAsync(
+        Client client, Guid contactId, SaveClientContact request, CancellationToken cancellationToken)
+    {
+        var contact = await db.ClientContacts.SingleOrDefaultAsync(row => row.ClientId == client.Id && row.Id == contactId
             && (row.Type == ClientContactType.General || row.Type == ClientContactType.Emergency), cancellationToken);
         if (contact is null) return null;
         // Contact type is immutable: changing it requires a new record to preserve emergency-contact history.

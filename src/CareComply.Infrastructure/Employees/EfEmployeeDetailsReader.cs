@@ -9,7 +9,7 @@ namespace CareComply.Infrastructure.Employees;
 
 internal sealed class EfEmployeeDetailsReader(
     CareComplyDbContext db,
-    ITenantScopeAccessor tenants) : IEmployeeDetailsReader
+    ITenantScopeAccessor tenants)
 {
     public async Task<EmployeeDetailsResponse?> GetAsync(Guid employeeId, CancellationToken ct)
     {
@@ -72,7 +72,8 @@ internal sealed class EfEmployeeDetailsReader(
             employee.RestrictDateAndTime, employee.EvvEmail, employee.EvvPasswordProtected.Length > 0,
             employee.IvrPinProtected.Length > 0, employee.EvvIvrAuthorization, employee.EmployeeTier,
             employee.TierEffectiveDate, employee.IsOnboarding, employee.AllowVisitScreen,
-            employee.AllowTravelTime, employee.AllowManualEntry, employee.AllowOneTimeLogin);
+            employee.AllowTravelTime, employee.AllowManualEntry, employee.AllowOneTimeLogin,
+            IdentityEditorVersion.Create(employee.ConcurrencyStamp ?? string.Empty));
     }
     private static string[] Split(string value) =>
         value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

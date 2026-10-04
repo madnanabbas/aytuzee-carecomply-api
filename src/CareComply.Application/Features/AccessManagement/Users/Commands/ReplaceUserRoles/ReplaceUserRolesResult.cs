@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.Users.Commands.Replac
 public sealed record ReplaceUserRolesResult(
     UserRoleUpdateResult? Update,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<ReplaceUserRolesResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString()
         ?? Update?.Status.ToString()

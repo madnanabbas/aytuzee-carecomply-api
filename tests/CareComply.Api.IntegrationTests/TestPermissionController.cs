@@ -37,10 +37,8 @@ public sealed record TestPermissionCommand : ICommand<TestPermissionResult>, IRe
     public string RequiredPermission => Permissions.Client.Create;
 }
 
-public sealed record TestPermissionResult(bool Handled, AuthorizationFailure? Failure);
-
-public sealed class TestPermissionResultFactory
-    : IAuthorizationFailureResultFactory<TestPermissionResult>
+public sealed record TestPermissionResult(bool Handled, AuthorizationFailure? Failure)
+    : IAuthorizationFailureResponse<TestPermissionResult>
 {
-    public TestPermissionResult Create(AuthorizationFailure failure) => new(false, failure);
+    public static TestPermissionResult Denied(AuthorizationFailure failure) => new(false, failure);
 }

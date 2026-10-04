@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.Roles.Queries.ListRol
 public sealed record ListRolesResult(
     IReadOnlyList<RoleDirectoryItem>? Roles,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<ListRolesResult>
 {
     public static ListRolesResult Succeeded(IReadOnlyList<RoleDirectoryItem> roles) =>
         new(roles, null);

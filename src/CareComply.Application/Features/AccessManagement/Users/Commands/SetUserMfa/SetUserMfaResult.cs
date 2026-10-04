@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.Users.Commands.SetUse
 public sealed record SetUserMfaResult(
     UserMfaUpdateResult? Update,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<SetUserMfaResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString()
         ?? Update?.Status.ToString()

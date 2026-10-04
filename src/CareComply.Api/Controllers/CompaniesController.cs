@@ -19,28 +19,55 @@ public sealed class CompaniesController(ICompanyAdministration companies) : Cont
         await companies.GetAsync(id, ct) is { } company ? Ok(Map(company)) : NotFound();
 
     [HttpPost, HasPermission(Permissions.Company.Create)]
-    public async Task<ActionResult<CompanyResponse>> Create(CreateCompanyRequest request, CancellationToken ct)
+    public async Task<ActionResult<CompanyResponse>> Create(
+        CreateCompanyRequest request,
+        CancellationToken ct
+    )
     {
-        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code)) return ValidationProblem();
+        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
+            return ValidationProblem();
         var result = await companies.CreateAsync(request.Name, request.Code, ct);
         return result.Status switch
         {
-            CompanyMutationStatus.Succeeded => CreatedAtAction(nameof(Get), new { id = result.Company!.Id }, Map(result.Company)),
-            CompanyMutationStatus.DuplicateCode => Conflict(new ProblemDetails { Title = "Company code already exists." }),
+            CompanyMutationStatus.Succeeded => CreatedAtAction(
+                nameof(Get),
+                new { id = result.Company!.Id },
+                Map(result.Company)
+            ),
+            CompanyMutationStatus.DuplicateCode => Conflict(
+                new ProblemDetails { Title = "Company code already exists." }
+            ),
             CompanyMutationStatus.Forbidden => Forbid(),
-            _ => Conflict()
+            _ => Conflict(),
         };
     }
 
     [HttpPut("{id:guid}"), HasPermission(Permissions.Company.Edit)]
-    public async Task<ActionResult<CompanyResponse>> Update(Guid id, UpdateCompanyRequest request, CancellationToken ct)
+    public async Task<ActionResult<CompanyResponse>> Update(
+        Guid id,
+        UpdateCompanyRequest request,
+        CancellationToken ct
+    )
     {
-        var result = await companies.UpdateAsync(id, request.Name, request.Code, request.IsActive, request.EditorVersion, ct);
+        var result = await companies.UpdateAsync(
+            id,
+            request.Name,
+            request.Code,
+            request.IsActive,
+            request.EditorVersion,
+            ct
+        );
         return result.Status switch
         {
-            CompanyMutationStatus.Succeeded => Ok(Map(result.Company!)), CompanyMutationStatus.NotFound => NotFound(),
-            CompanyMutationStatus.DuplicateCode => Conflict(new ProblemDetails { Title = "Company code already exists." }),
-            CompanyMutationStatus.Forbidden => Forbid(), _ => Conflict(new ProblemDetails { Title = "Company was changed. Reload and try again." })
+            CompanyMutationStatus.Succeeded => Ok(Map(result.Company!)),
+            CompanyMutationStatus.NotFound => NotFound(),
+            CompanyMutationStatus.DuplicateCode => Conflict(
+                new ProblemDetails { Title = "Company code already exists." }
+            ),
+            CompanyMutationStatus.Forbidden => Forbid(),
+            _ => Conflict(
+                new ProblemDetails { Title = "Company was changed. Reload and try again." }
+            ),
         };
     }
 
@@ -48,8 +75,22 @@ public sealed class CompaniesController(ICompanyAdministration companies) : Cont
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var result = await companies.DeleteAsync(id, ct);
-        return result.Status switch { CompanyMutationStatus.Succeeded => NoContent(), CompanyMutationStatus.NotFound => NotFound(), CompanyMutationStatus.Forbidden => Forbid(), CompanyMutationStatus.InUse => Conflict(new ProblemDetails { Title = "Company has users or clients and cannot be deleted. Deactivate it instead." }), _ => Conflict() };
+        return result.Status switch
+        {
+            CompanyMutationStatus.Succeeded => NoContent(),
+            CompanyMutationStatus.NotFound => NotFound(),
+            CompanyMutationStatus.Forbidden => Forbid(),
+            CompanyMutationStatus.InUse => Conflict(
+                new ProblemDetails
+                {
+                    Title =
+                        "Company has users or clients and cannot be deleted. Deactivate it instead.",
+                }
+            ),
+            _ => Conflict(),
+        };
     }
 
-    private static CompanyResponse Map(CompanySummary x) => new(x.Id, x.Name, x.Code, x.IsActive, x.UserCount, x.ClientCount, x.EditorVersion);
+    private static CompanyResponse Map(CompanySummary x) =>
+        new(x.Id, x.Name, x.Code, x.IsActive, x.UserCount, x.ClientCount, x.EditorVersion);
 }

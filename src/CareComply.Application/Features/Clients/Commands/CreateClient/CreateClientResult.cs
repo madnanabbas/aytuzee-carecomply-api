@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.Clients.Commands.CreateClient;
 public sealed record CreateClientResult(
     ClientAdministrationResult? Administration,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<CreateClientResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString()
         ?? Administration?.Status.ToString()

@@ -16,12 +16,14 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
     public const string MfaEmailResendRateLimitPolicy = "authentication-mfa-email-resend";
     public const string ForgotPasswordRateLimitPolicy = "authentication-password-forgot";
     public const string ResetPasswordRateLimitPolicy = "authentication-password-reset";
+    public const string PublicClientIntakeRateLimitPolicy = "public-client-intake";
 
     private const int DefaultLoginPermitLimit = 10;
     private const int DefaultMfaPermitLimit = 5;
     private const int DefaultMfaEmailResendPermitLimit = 3;
     private const int DefaultForgotPasswordPermitLimit = 5;
     private const int DefaultResetPasswordPermitLimit = 10;
+    private const int DefaultPublicClientIntakePermitLimit = 20;
 
     public static IServiceCollection AddCareComplyAuthentication(
         this IServiceCollection services,
@@ -93,6 +95,9 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
         var resetPasswordPermitLimit = configuration.GetValue<int?>(
             "Authentication:PasswordRecovery:ResetRateLimitPermitLimit")
             ?? DefaultResetPasswordPermitLimit;
+        var publicClientIntakePermitLimit = configuration.GetValue<int?>(
+            "ClientGuestInvitation:PublicValidationRateLimitPermitLimit")
+            ?? DefaultPublicClientIntakePermitLimit;
 
         if (loginPermitLimit <= 0)
         {
@@ -110,6 +115,12 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
         {
             throw new InvalidOperationException(
                 "Authentication password-recovery rate-limit permit counts must be greater than zero.");
+        }
+
+        if (publicClientIntakePermitLimit <= 0)
+        {
+            throw new InvalidOperationException(
+                "Public client-intake rate-limit permit count must be greater than zero.");
         }
 
         services.AddRateLimiter(options =>
@@ -162,6 +173,16 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                     {
                         AutoReplenishment = true,
                         PermitLimit = resetPasswordPermitLimit,
+                        QueueLimit = 0,
+                        Window = TimeSpan.FromMinutes(1),
+                    }));
+            options.AddPolicy(PublicClientIntakeRateLimitPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        AutoReplenishment = true,
+                        PermitLimit = publicClientIntakePermitLimit,
                         QueueLimit = 0,
                         Window = TimeSpan.FromMinutes(1),
                     }));

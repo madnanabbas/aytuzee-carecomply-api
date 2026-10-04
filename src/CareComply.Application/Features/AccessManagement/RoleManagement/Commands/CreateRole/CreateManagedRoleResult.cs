@@ -4,6 +4,7 @@ using CareComply.Application.Authorization;
 namespace CareComply.Application.Features.AccessManagement.RoleManagement.Commands.CreateRole;
 
 public sealed record CreateManagedRoleResult(RoleMutationResult? Mutation, AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<CreateManagedRoleResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString() ?? Mutation?.Status.ToString() ?? "Unavailable";
     public static CreateManagedRoleResult Succeeded(RoleMutationResult mutation) => new(mutation, null);

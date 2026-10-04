@@ -4,6 +4,22 @@ namespace CareComply.Application.Abstractions.Clients;
 
 public interface IClientAdministration
 {
+    Task<ClientAdministrationResult> CreateBasicDetailsAsync(
+        ClientBasicDetailsCreateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ClientAdministrationResult> UpdateBasicDetailsAsync(
+        ClientBasicDetailsUpdateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ClientAdministrationResult> UpdateAdditionalInformationAsync(
+        ClientAdditionalInformationUpdateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ClientAdministrationResult> UpdateContactInformationAsync(
+        ClientContactInformationUpdateRequest request,
+        CancellationToken cancellationToken);
+
     Task<ClientAdministrationResult> CreateAsync(
         ClientCreateRequest request,
         CancellationToken cancellationToken);
@@ -15,7 +31,44 @@ public interface IClientAdministration
     Task<ClientAdministrationResult> ChangeStatusAsync(
         ClientStatusChangeRequest request,
         CancellationToken cancellationToken);
+
+    Task<ClientAdministrationResult> CompleteCreationAsync(
+        ClientCreationCompletionRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ClientCreationStateResult> GetCreationStateAsync(
+        Guid clientId,
+        CancellationToken cancellationToken);
+
+    Task<ClientCreationProgressResult> AdvanceCreationProgressAsync(
+        ClientCreationProgressRequest request,
+        CancellationToken cancellationToken);
 }
+
+public sealed record ClientBasicDetailsCreateRequest(
+    ClientIdentityInput Identity,
+    ClientCareSetupInput CareSetup,
+    string? InsuranceProvider,
+    IReadOnlyList<ClientServiceInput> Services);
+
+public sealed record ClientBasicDetailsUpdateRequest(
+    Guid ClientId,
+    ClientIdentityInput Identity,
+    ClientCareSetupInput CareSetup,
+    string? InsuranceProvider,
+    IReadOnlyList<ClientServiceInput> Services,
+    string EditorVersion);
+
+public sealed record ClientAdditionalInformationUpdateRequest(
+    Guid ClientId,
+    ClientAdditionalProfileInput AdditionalProfile,
+    string EditorVersion);
+
+public sealed record ClientContactInformationUpdateRequest(
+    Guid ClientId,
+    ClientContactInput Contact,
+    IReadOnlyList<ClientLanguageInput> Languages,
+    string EditorVersion);
 
 public sealed record ClientIdentityInput(
     string FirstName,
@@ -124,6 +177,29 @@ public sealed record ClientStatusChangeRequest(
     DateOnly? DischargeDate,
     string? DischargeReason,
     string EditorVersion);
+
+public sealed record ClientCreationCompletionRequest(
+    Guid ClientId,
+    string EditorVersion);
+
+public sealed record ClientCreationProgressRequest(
+    Guid ClientId,
+    int Step,
+    string EditorVersion);
+
+public sealed record ClientCreationState(
+    ClientDirectoryDetails Client,
+    int CurrentStep);
+
+public sealed record ClientCreationStateResult(
+    ClientAdministrationStatus Status,
+    ClientCreationState? State = null);
+
+public sealed record ClientCreationProgressResult(
+    ClientAdministrationStatus Status,
+    Guid ClientId,
+    int CurrentStep,
+    string? EditorVersion = null);
 
 public sealed record ClientAdministrationResult(
     ClientAdministrationStatus Status,

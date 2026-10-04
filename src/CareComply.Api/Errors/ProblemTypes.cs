@@ -22,6 +22,7 @@ public static class ProblemTypes
     public const string ClientCaregiverPrimaryConflict = "urn:carecomply:problem:client-caregiver-primary-conflict";
     public const string ClientCaregiverConflict = "urn:carecomply:problem:client-caregiver-conflict";
     public const string ClientServiceHistoryConflict = "urn:carecomply:problem:client-service-history-conflict";
+    public const string EmployeeConflict = "urn:carecomply:problem:employee-conflict";
     public const string InternalServerError = "urn:carecomply:problem:internal-server-error";
     public const string MfaChallengeExpired = "urn:carecomply:problem:mfa-challenge-expired";
     public const string MfaEnrollmentState = "urn:carecomply:problem:mfa-enrollment-state";

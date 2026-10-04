@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.Users.Commands.Update
 public sealed record UpdateUserGeneralResult(
     UserGeneralUpdateResult? Update,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<UpdateUserGeneralResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString()
         ?? Update?.Status.ToString()

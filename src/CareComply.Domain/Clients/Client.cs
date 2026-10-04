@@ -77,6 +77,7 @@ public sealed class Client
     public DateOnly SocDate { get; private set; }
     public string ReferralSource { get; private set; } = string.Empty;
     public ClientStatus Status { get; private set; }
+    public int CreationProgressStep { get; private set; }
     public string Location { get; private set; } = string.Empty;
     public bool IsOnboarding { get; private set; }
     public DateOnly? DischargeDate { get; private set; }
@@ -227,6 +228,21 @@ public sealed class Client
     {
         SetIntakeAndStatus(IntakeDate, SocDate, status, dischargeDate, dischargeReason);
         Touch(updatedAtUtc);
+    }
+
+    public bool AdvanceCreationProgress(int step, DateTimeOffset nowUtc)
+    {
+        if (Status != ClientStatus.Pending)
+            throw new InvalidOperationException("Only pending clients have creation progress.");
+        if (step is < 2 or > 10)
+            throw new ArgumentOutOfRangeException(nameof(step));
+        if (step <= CreationProgressStep) return false;
+        if (CreationProgressStep > 0 && step > CreationProgressStep + 1)
+            throw new InvalidOperationException("Creation progress cannot skip steps.");
+
+        CreationProgressStep = step;
+        Touch(nowUtc);
+        return true;
     }
 
     public void MarkUpdated(DateTimeOffset updatedAtUtc) => Touch(updatedAtUtc);

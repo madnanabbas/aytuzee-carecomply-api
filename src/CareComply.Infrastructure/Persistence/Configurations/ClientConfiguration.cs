@@ -11,6 +11,9 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.ToTable("Clients", table =>
         {
             table.HasCheckConstraint("CK_Clients_Status", "[Status] BETWEEN 1 AND 5");
+            table.HasCheckConstraint(
+                "CK_Clients_CreationProgressStep",
+                "[CreationProgressStep] BETWEEN 0 AND 10");
             table.HasCheckConstraint("CK_Clients_Gender", "[Gender] BETWEEN 0 AND 5");
             table.HasCheckConstraint("CK_Clients_EvvAuthorizedHoursPerWeek",
                 "[EvvAuthorizedHoursPerWeek] IS NULL OR ([EvvAuthorizedHoursPerWeek] >= 0 AND [EvvAuthorizedHoursPerWeek] <= 168)");
@@ -42,6 +45,7 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         entity.Property(client => client.SocDate).HasColumnType("date");
         entity.Property(client => client.ReferralSource).HasMaxLength(Client.MaximumReferralSourceLength).IsRequired();
         entity.Property(client => client.Status).HasConversion<int>();
+        entity.Property(client => client.CreationProgressStep).HasDefaultValue(0);
         entity.Property(client => client.Location).HasMaxLength(Client.MaximumLocationLength).IsRequired();
         entity.Property(client => client.DischargeDate).HasColumnType("date");
         entity.Property(client => client.DischargeReason).HasMaxLength(Client.MaximumTextLength).IsRequired();
@@ -211,8 +215,12 @@ internal sealed class ClientHospitalizationConfiguration : IEntityTypeConfigurat
     public void Configure(EntityTypeBuilder<ClientHospitalization> entity)
     {
         entity.ToTable("ClientHospitalizations", table =>
+        {
             table.HasCheckConstraint("CK_ClientHospitalizations_Dates",
-                "[DischargedAtUtc] IS NULL OR [DischargedAtUtc] >= [AdmittedAtUtc]"));
+                "[DischargedAtUtc] IS NULL OR [DischargedAtUtc] >= [AdmittedAtUtc]");
+            table.HasCheckConstraint("CK_ClientHospitalizations_Creator",
+                "([CreatedByUserId] IS NULL AND [CreatedByGuestInvitationId] IS NOT NULL) OR ([CreatedByUserId] IS NOT NULL AND [CreatedByGuestInvitationId] IS NULL)");
+        });
         entity.HasKey(hospitalization => hospitalization.Id).HasName("PK_ClientHospitalizations");
         entity.Property(hospitalization => hospitalization.Id).ValueGeneratedNever();
         entity.Property(hospitalization => hospitalization.HospitalName)
@@ -228,6 +236,9 @@ internal sealed class ClientHospitalizationConfiguration : IEntityTypeConfigurat
         entity.Property(hospitalization => hospitalization.RowVersion).IsRowVersion();
         entity.HasOne<CareComply.Infrastructure.Identity.ApplicationUser>()
             .WithMany().HasForeignKey(hospitalization => hospitalization.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne<ClientGuestInvitation>()
+            .WithMany().HasForeignKey(hospitalization => hospitalization.CreatedByGuestInvitationId)
             .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<Client>()
             .WithMany()

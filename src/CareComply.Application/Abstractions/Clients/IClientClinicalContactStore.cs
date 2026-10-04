@@ -19,4 +19,9 @@ public interface IClientClinicalContactStore
     Task<ClinicalContactItem?> UpdateConsultationProviderAsync(Guid clientId, Guid contactId, SaveConsultationProvider request, CancellationToken cancellationToken);
     Task<ClinicalContactItem?> CreatePhysicianAsync(Guid clientId, SavePhysician request, CancellationToken cancellationToken);
     Task<ClinicalContactItem?> UpdatePhysicianAsync(Guid clientId, Guid contactId, SavePhysician request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ClinicalContactItem>> ListForClientAsync(Client client, ClientContactType type, CancellationToken cancellationToken);
+    Task<ClinicalContactItem> CreateConsultationProviderForClientAsync(Client client, SaveConsultationProvider request, CancellationToken cancellationToken);
+    Task<ClinicalContactItem?> UpdateConsultationProviderForClientAsync(Client client, Guid contactId, SaveConsultationProvider request, CancellationToken cancellationToken);
+    Task<ClinicalContactItem> CreatePhysicianForClientAsync(Client client, SavePhysician request, CancellationToken cancellationToken);
+    Task<ClinicalContactItem?> UpdatePhysicianForClientAsync(Client client, Guid contactId, SavePhysician request, CancellationToken cancellationToken);
 }

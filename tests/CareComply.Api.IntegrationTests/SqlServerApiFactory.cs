@@ -16,6 +16,7 @@ using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using CareComply.Application.Abstractions.Identity;
+using CareComply.Application.Abstractions.Clients;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CareComply.Api.IntegrationTests;
@@ -31,6 +32,9 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
 
     public RecordingPasswordRecoveryEmailSender PasswordRecoveryEmailSender { get; } = new();
     public RecordingMfaEmailSender MfaEmailSender { get; } = new();
+    public RecordingClientGuestInvitationEmailSender ClientGuestInvitationEmailSender { get; } = new();
+    public PermissionQueryCounter PermissionQueryCounter =>
+        Services.GetRequiredService<PermissionQueryCounter>();
 
     public async Task InitializeAsync()
     {
@@ -240,7 +244,12 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
         builder.UseSetting("Authentication:Mfa:EmailResendRateLimitPermitLimit", "100");
         builder.UseSetting("Authentication:PasswordRecovery:ForgotRateLimitPermitLimit", "100");
         builder.UseSetting("Authentication:PasswordRecovery:ResetRateLimitPermitLimit", "100");
+        builder.UseSetting("ClientGuestInvitation:PublicValidationRateLimitPermitLimit", "1000");
         builder.UseSetting("PasswordRecovery:FrontendBaseUrl", "https://carecomply.example.test");
+        builder.UseSetting(
+            "ClientGuestInvitation:PublicClientIntakeUrl",
+            "https://carecomply.example.test/client-intake");
+        builder.UseSetting("ClientGuestInvitation:Lifetime", "7.00:00:00");
         builder.UseSetting(
             "EmailDelivery:AzureCommunicationServicesEndpoint",
             "https://carecomply-email.communication.azure.com");
@@ -251,21 +260,21 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
             services.AddSingleton<IPasswordRecoveryEmailSender>(PasswordRecoveryEmailSender);
             services.RemoveAll<IMfaEmailSender>();
             services.AddSingleton<IMfaEmailSender>(MfaEmailSender);
+            services.RemoveAll<IClientGuestInvitationEmailSender>();
+            services.AddSingleton<IClientGuestInvitationEmailSender>(ClientGuestInvitationEmailSender);
+            services.AddSingleton<PermissionQueryCounter>();
+            services.AddDbContext<CareComplyDbContext>((serviceProvider, options) =>
+                options.AddInterceptors(
+                    serviceProvider.GetRequiredService<PermissionQueryCounter>()));
             services.AddControllers().AddApplicationPart(typeof(TestPermissionController).Assembly);
             services.AddScoped<
                 AuthorizationBehavior<TestPermissionCommand, TestPermissionResult>>();
-            services.AddScoped<
-                IAuthorizationFailureResultFactory<TestPermissionResult>,
-                TestPermissionResultFactory>();
             services.AddScoped<
                 ValidationBehavior<TestAuditCommand, TestAuditResult>>();
             services.AddScoped<
                 AuthorizationBehavior<TestAuditCommand, TestAuditResult>>();
             services.AddScoped<AuditBehavior<TestAuditCommand, TestAuditResult>>();
             services.AddScoped<IValidator<TestAuditCommand>, TestAuditCommandValidator>();
-            services.AddScoped<
-                IAuthorizationFailureResultFactory<TestAuditResult>,
-                TestAuditAuthorizationFailureResultFactory>();
         });
     }
 
@@ -365,3 +374,30 @@ public sealed class RecordingMfaEmailSender : IMfaEmailSender
 }
 
 public sealed record RecordedMfaEmail(string RecipientAddress, string Code);
+
+public sealed class RecordingClientGuestInvitationEmailSender : IClientGuestInvitationEmailSender
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<ClientGuestInvitationEmailMessage>
+        _messages = new();
+
+    public IReadOnlyList<ClientGuestInvitationEmailMessage> Messages => [.. _messages];
+
+    public bool DeliverySucceeds { get; set; } = true;
+
+    public void Clear()
+    {
+        DeliverySucceeds = true;
+        while (_messages.TryDequeue(out _))
+        {
+        }
+    }
+
+    public Task<bool> SendAsync(
+        ClientGuestInvitationEmailMessage message,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _messages.Enqueue(message);
+        return Task.FromResult(DeliverySucceeds);
+    }
+}

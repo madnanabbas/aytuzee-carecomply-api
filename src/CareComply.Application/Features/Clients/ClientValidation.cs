@@ -26,6 +26,23 @@ internal static class ClientValidation
 
     public static bool HasExactlyOnePrimaryLanguage(IReadOnlyList<ClientLanguageInput> languages) =>
         languages.Count > 0 && languages.Count(language => language.IsPrimary) == 1;
+
+    public static bool IsValidUsPhone(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        if (value.Any(character =>
+                !char.IsAsciiDigit(character)
+                && character is not ' ' and not '(' and not ')' and not '-' and not '.'))
+        {
+            return false;
+        }
+        var digits = new string(value.Where(char.IsAsciiDigit).ToArray());
+        return digits.Length == 10;
+    }
+
+    public static bool IsValidUsPostalCode(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+        || System.Text.RegularExpressions.Regex.IsMatch(value.Trim(), @"^\d{5}(?:-\d{4})?$");
 }
 
 internal sealed class ClientIdentityInputValidator : AbstractValidator<ClientIdentityInput>
@@ -81,11 +98,12 @@ internal sealed class ClientContactInputValidator : AbstractValidator<ClientCont
             .Must(value => !string.IsNullOrWhiteSpace(value))
             .WithMessage("Primary phone is required.")
             .MaximumLength(Client.MaximumPhoneLength)
-            .Matches(@"^\(\d{3}\) \d{3}-\d{4}$")
-            .WithMessage("Primary phone must use (555) 555-1234 format.");
+            .Must(ClientValidation.IsValidUsPhone)
+            .WithMessage("Primary phone must contain exactly 10 US digits.");
         RuleFor(input => input.SecondaryPhone)
             .MaximumLength(Client.MaximumPhoneLength)
-            .Matches(@"^\+?[0-9 ()\-.]{7,30}$")
+            .Must(ClientValidation.IsValidUsPhone)
+            .WithMessage("Secondary phone must contain exactly 10 US digits.")
             .When(input => !string.IsNullOrWhiteSpace(input.SecondaryPhone));
         RuleFor(input => input.AddressLine1)
             .Must(value => !string.IsNullOrWhiteSpace(value))
@@ -95,7 +113,9 @@ internal sealed class ClientContactInputValidator : AbstractValidator<ClientCont
         RuleFor(input => input.City).MaximumLength(Client.MaximumCityLength);
         RuleFor(input => input.State).MaximumLength(Client.MaximumStateLength);
         RuleFor(input => input.PostalCode)
-            .MaximumLength(Client.MaximumPostalCodeLength);
+            .MaximumLength(Client.MaximumPostalCodeLength)
+            .Must(ClientValidation.IsValidUsPostalCode)
+            .WithMessage("Postal code must use 12345 or 12345-6789 format.");
         RuleFor(input => input.County).MaximumLength(Client.MaximumCountyLength);
         RuleFor(input => input.Country)
             .Must(country => string.Equals(country, "United States", StringComparison.OrdinalIgnoreCase))

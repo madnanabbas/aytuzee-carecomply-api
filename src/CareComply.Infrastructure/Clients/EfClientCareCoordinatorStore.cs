@@ -12,8 +12,14 @@ internal sealed class EfClientCareCoordinatorStore(CareComplyDbContext db, ITena
     public async Task<IReadOnlyList<CareCoordinatorItem>?> ListAsync(Guid clientId, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
+        var client = await db.Clients.AsNoTracking().SingleAsync(value => value.Id == clientId, cancellationToken);
+        return await ListForClientAsync(client, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CareCoordinatorItem>> ListForClientAsync(Client client, CancellationToken cancellationToken)
+    {
         var coordinators = await db.ClientContacts.AsNoTracking()
-            .Where(contact => contact.ClientId == clientId && contact.Type == ClientContactType.CareCoordinator)
+            .Where(contact => contact.ClientId == client.Id && contact.Type == ClientContactType.CareCoordinator)
             .OrderBy(contact => contact.Name).ToArrayAsync(cancellationToken);
         return coordinators.Select(Map).ToArray();
     }
@@ -21,7 +27,13 @@ internal sealed class EfClientCareCoordinatorStore(CareComplyDbContext db, ITena
     public async Task<CareCoordinatorItem?> CreateAsync(Guid clientId, SaveCareCoordinator request, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
-        var coordinator = new ClientContact(Guid.CreateVersion7(), clientId, ClientContactType.CareCoordinator,
+        var client = await db.Clients.AsNoTracking().SingleAsync(value => value.Id == clientId, cancellationToken);
+        return await CreateForClientAsync(client, request, cancellationToken);
+    }
+
+    public async Task<CareCoordinatorItem> CreateForClientAsync(Client client, SaveCareCoordinator request, CancellationToken cancellationToken)
+    {
+        var coordinator = new ClientContact(Guid.CreateVersion7(), client.Id, ClientContactType.CareCoordinator,
             request.Name, null, request.Phone, request.Email, false, false, null, null, null);
         coordinator.UpdateCareCoordinator(request.Name, request.CompanyName, request.Phone,
             request.PhoneExtension, request.Fax, request.Email, request.IsActive);
@@ -33,7 +45,13 @@ internal sealed class EfClientCareCoordinatorStore(CareComplyDbContext db, ITena
     public async Task<CareCoordinatorItem?> UpdateAsync(Guid clientId, Guid coordinatorId, SaveCareCoordinator request, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
-        var coordinator = await db.ClientContacts.SingleOrDefaultAsync(contact => contact.ClientId == clientId
+        var client = await db.Clients.AsNoTracking().SingleAsync(value => value.Id == clientId, cancellationToken);
+        return await UpdateForClientAsync(client, coordinatorId, request, cancellationToken);
+    }
+
+    public async Task<CareCoordinatorItem?> UpdateForClientAsync(Client client, Guid coordinatorId, SaveCareCoordinator request, CancellationToken cancellationToken)
+    {
+        var coordinator = await db.ClientContacts.SingleOrDefaultAsync(contact => contact.ClientId == client.Id
             && contact.Id == coordinatorId && contact.Type == ClientContactType.CareCoordinator, cancellationToken);
         if (coordinator is null) return null;
         coordinator.UpdateCareCoordinator(request.Name, request.CompanyName, request.Phone,

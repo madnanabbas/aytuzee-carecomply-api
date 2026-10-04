@@ -7,10 +7,16 @@ namespace CareComply.Infrastructure.Employees;
 
 internal sealed class EfEmployeeDirectory(
     CareComplyDbContext context,
-    ITenantScopeAccessor tenants) : IEmployeeDirectory
+    ITenantScopeAccessor tenants,
+    EfEmployeeDetailsReader detailsReader) : IEmployeeDirectory
 {
-    public async Task<IReadOnlyList<EmployeeDirectoryEntry>?> ListAsync(
-        string? search,
+    public Task<EmployeeDetailsResponse?> GetAsync(
+        Guid employeeId,
+        CancellationToken cancellationToken) =>
+        detailsReader.GetAsync(employeeId, cancellationToken);
+
+    public async Task<EmployeeDirectoryPage?> ListAsync(
+        EmployeeDirectoryRequest request,
         CancellationToken cancellationToken)
     {
         var tenant = await tenants.GetAsync(cancellationToken);
@@ -25,18 +31,22 @@ internal sealed class EfEmployeeDirectory(
             employees = employees.Where(user => user.CompanyId == tenant.CompanyId);
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            var value = search.Trim();
+            var value = request.Search.Trim();
             employees = employees.Where(user =>
                 user.FirstName.Contains(value) ||
                 user.LastName.Contains(value) ||
                 user.Email!.Contains(value));
         }
 
-        return await employees
+        var totalCount = await employees.CountAsync(cancellationToken);
+        var items = await employees
             .OrderBy(user => user.LastName)
             .ThenBy(user => user.FirstName)
+            .ThenBy(user => user.Id)
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
             .Select(user => new EmployeeDirectoryEntry(
                 user.Id,
                 user.CompanyId,
@@ -57,5 +67,7 @@ internal sealed class EfEmployeeDirectory(
                     .OrderBy(name => name)
                     .ToArray()))
             .ToArrayAsync(cancellationToken);
+
+        return new(items, request.PageNumber, request.PageSize, totalCount);
     }
 }

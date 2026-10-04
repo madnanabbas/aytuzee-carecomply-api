@@ -1,46 +1,124 @@
 using CareComply.Api.Authorization;
 using CareComply.Api.Contracts.Clients;
 using CareComply.Api.Errors;
+using CareComply.Api.Mapping;
 using CareComply.Application.Abstractions.Clients;
-using CareComply.Application.Abstractions.Tenancy;
 using CareComply.Application.Authorization;
 using CareComply.Application.Features.Clients.Commands.ChangeClientStatus;
+using CareComply.Application.Features.Clients.Commands.CompleteClientCreation;
 using CareComply.Application.Features.Clients.Commands.CreateClient;
+using CareComply.Application.Features.Clients.Commands.CreateClientBasicDetails;
+using CareComply.Application.Features.Clients.Commands.UpdateClientBasicDetails;
 using CareComply.Application.Features.Clients.Commands.UpdateClient;
+using CareComply.Application.Features.Clients.Commands.UpdateClientAdditionalInformation;
+using CareComply.Application.Features.Clients.Commands.UpdateClientContactInformation;
+using CareComply.Application.Features.Clients.CreationProgress;
 using CareComply.Application.Features.Clients.Queries.GetClient;
 using CareComply.Application.Features.Clients.Queries.ListClients;
 using CareComply.Application.Features.Clients.Queries.RevealClientSsn;
+using CareComply.Application.Features.Clients.GuestInvitations;
 using CareComply.Domain.Clients;
-using CareComply.Infrastructure.Persistence;
 using Mediator;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace CareComply.Api.Controllers;
 
 [ApiController]
 [Route("api/clients")]
-public sealed class ClientsController(ISender sender, CareComplyDbContext db, ITenantScopeAccessor tenants) : ControllerBase
+public sealed class ClientsController(
+    ISender sender,
+    IClientSupervisorCandidateReader supervisorCandidateReader) : ControllerBase
 {
+    [HttpPost("guest-invitations")]
+    [HasPermission(Permissions.Client.GuestInvite)]
+    public async Task<ActionResult<CreateClientGuestInvitationResponse>> CreateGuestInvitation(
+        CreateClientGuestInvitationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new CreateClientGuestInvitationCommand(
+            request.ClientName,
+            request.Email,
+            request.MobileNumber,
+            request.CompanyId), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+
+        return result.Creation?.Status switch
+        {
+            ClientGuestInvitationCreationStatus.Succeeded => Ok(new CreateClientGuestInvitationResponse(
+                result.Creation.InvitationId!.Value,
+                result.Creation.GuestLink!,
+                result.Creation.ExpiresAtUtc!.Value)),
+            ClientGuestInvitationCreationStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The selected company was not found or is unavailable.",
+                type: ProblemTypes.ClientNotFound),
+            ClientGuestInvitationCreationStatus.InvalidConfiguration => Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Guest invitation generation is not configured.",
+                type: ProblemTypes.ClientInvalidState),
+            _ => Problem(statusCode: StatusCodes.Status409Conflict, title: "The invitation could not be created."),
+        };
+    }
+
+    [HttpPost("guest-invitations/{invitationId:guid}/send")]
+    [HasPermission(Permissions.Client.GuestInvite)]
+    public async Task<ActionResult<SendClientGuestInvitationResponse>> SendGuestInvitation(
+        Guid invitationId,
+        SendClientGuestInvitationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new SendClientGuestInvitationCommand(invitationId, request.Token),
+            cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+
+        return result.Send?.Status switch
+        {
+            ClientGuestInvitationSendStatus.Succeeded => Ok(new SendClientGuestInvitationResponse(
+                result.Send.InvitationId,
+                result.Send.SentAtUtc!.Value,
+                result.Send.ExpiresAtUtc!.Value)),
+            ClientGuestInvitationSendStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The invitation was not found.",
+                type: ProblemTypes.ClientNotFound),
+            ClientGuestInvitationSendStatus.InvalidToken => Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "The invitation token is invalid.",
+                type: ProblemTypes.ClientInvalidState),
+            ClientGuestInvitationSendStatus.Unavailable => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The invitation is no longer available.",
+                type: ProblemTypes.ClientConflict),
+            ClientGuestInvitationSendStatus.DeliveryFailed => Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "The invitation email could not be delivered.",
+                type: ProblemTypes.ClientConflict),
+            ClientGuestInvitationSendStatus.Conflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The invitation changed while it was being sent.",
+                type: ProblemTypes.ClientConflict),
+            ClientGuestInvitationSendStatus.InvalidConfiguration => Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Guest invitation delivery is not configured.",
+                type: ProblemTypes.ClientInvalidState),
+            _ => Problem(statusCode: StatusCodes.Status409Conflict, title: "The invitation could not be sent."),
+        };
+    }
+
     [HttpGet("supervisor-candidates")]
     [HasPermission(Permissions.Client.View)]
     public async Task<ActionResult<IReadOnlyList<ClientSupervisorCandidateResponse>>> SupervisorCandidates(
         [FromQuery] Guid locationId, CancellationToken cancellationToken)
     {
-        var tenant = await tenants.GetAsync(cancellationToken);
-        if (tenant is null) return Unauthorized();
-        var location = await db.CompanyLocations.AsNoTracking().Where(x => x.Id == locationId && x.IsActive)
-            .Select(x => new { x.CompanyId }).SingleOrDefaultAsync(cancellationToken);
-        if (location is null || (!tenant.IsPlatformAdministrator &&
-            (tenant.CompanyId != location.CompanyId || !await db.UserLocations.AnyAsync(x => x.UserId == tenant.UserId && x.LocationId == locationId, cancellationToken))))
-            return NotFound();
-
-        var employees = await db.Users.AsNoTracking().Where(user => user.CompanyId == location.CompanyId && user.IsEmployee && user.IsActive &&
-            db.UserLocations.Any(access => access.UserId == user.Id && access.LocationId == locationId))
-            .OrderBy(user => user.LastName).ThenBy(user => user.FirstName)
-            .Select(user => new ClientSupervisorCandidateResponse(user.Id, user.FirstName + " " + user.LastName, user.JobTitle))
-            .ToArrayAsync(cancellationToken);
-        return Ok(employees);
+        var result = await supervisorCandidateReader.ListAsync(locationId, cancellationToken);
+        return result.Status switch
+        {
+            ClientSupervisorCandidateReadStatus.Succeeded =>
+                Ok(result.Candidates.Select(ClientApiMapper.ToResponse).ToArray()),
+            ClientSupervisorCandidateReadStatus.Unauthenticated => Unauthorized(),
+            _ => NotFound(),
+        };
     }
     [HttpGet]
     [HasPermission(Permissions.Client.View)]
@@ -113,7 +191,7 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
             : (int)Math.Ceiling(page.TotalCount / (double)page.PageSize);
 
         return Ok(new ClientListResponse(
-            page.Items.Select(MapListItem).ToArray(),
+            page.Items.Select(ClientApiMapper.ToResponse).ToArray(),
             page.PageNumber,
             page.PageSize,
             page.TotalCount,
@@ -133,7 +211,7 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
         }
 
         return result.Client is { } client
-            ? Ok(MapClient(client))
+            ? Ok(ClientApiMapper.ToResponse(client))
             : Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "The requested client was not found.",
@@ -179,16 +257,16 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
         }
 
         var result = await sender.Send(new CreateClientCommand(
-            MapIdentity(request.Identity, gender),
-            MapContact(request.Contact),
-            MapCareSetup(request.CareSetup),
-            MapSafety(request.Safety),
-            MapAdditionalProfile(request.AdditionalProfile, programType),
+            ClientApiMapper.ToInput(request.Identity, gender),
+            ClientApiMapper.ToInput(request.Contact),
+            ClientApiMapper.ToInput(request.CareSetup),
+            ClientApiMapper.ToInput(request.Safety),
+            ClientApiMapper.ToInput(request.AdditionalProfile, programType),
             initialStatus,
             request.DischargeDate,
             request.DischargeReason,
-            MapServices(request.Services),
-            MapLanguages(request.Languages)), cancellationToken);
+            ClientApiMapper.ToInputs(request.Services),
+            ClientApiMapper.ToInputs(request.Languages)), cancellationToken);
 
         if (result.AuthorizationFailure is { } failure)
         {
@@ -199,7 +277,7 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
         return mutation?.Status switch
         {
             ClientAdministrationStatus.Succeeded when mutation.Client is { } client =>
-                CreatedAtAction(nameof(Get), new { clientId = client.Id }, MapClient(client)),
+                CreatedAtAction(nameof(Get), new { clientId = client.Id }, ClientApiMapper.ToResponse(client)),
             ClientAdministrationStatus.DuplicatePmi => Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "That PMI number is already assigned to another client.",
@@ -215,6 +293,175 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
             _ => Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "The client could not be created.",
+                type: ProblemTypes.ClientConflict),
+        };
+    }
+
+    [HttpGet("{clientId:guid}/creation-state")]
+    [HasPermission(Permissions.Client.Edit)]
+    public async Task<ActionResult<ClientCreationStateResponse>> GetCreationState(
+        Guid clientId,
+        CancellationToken cancellationToken)
+    {
+        var operation = await sender.Send(
+            new GetClientCreationStateQuery(clientId),
+            cancellationToken);
+        if (operation.AuthorizationFailure is { } failure)
+            return MapAuthorizationFailure(failure);
+
+        return operation.Result?.Status switch
+        {
+            ClientAdministrationStatus.Succeeded when operation.Result.State is { } state =>
+                Ok(ToCreationStateResponse(state)),
+            ClientAdministrationStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The requested client was not found.",
+                type: ProblemTypes.ClientNotFound),
+            ClientAdministrationStatus.InvalidState => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Only a pending client can resume creation.",
+                type: ProblemTypes.ClientConflict),
+            _ => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Client creation could not be resumed.",
+                type: ProblemTypes.ClientConflict),
+        };
+    }
+
+    [HttpPost("{clientId:guid}/creation-progress")]
+    [HasPermission(Permissions.Client.Edit)]
+    public async Task<ActionResult<ClientCreationProgressResponse>> AdvanceCreationProgress(
+        Guid clientId,
+        AdvanceClientCreationProgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var operation = await sender.Send(
+            new AdvanceClientCreationProgressCommand(clientId, request.Step, request.EditorVersion),
+            cancellationToken);
+        if (operation.AuthorizationFailure is { } failure)
+            return MapAuthorizationFailure(failure);
+
+        return operation.Result?.Status switch
+        {
+            ClientAdministrationStatus.Succeeded or ClientAdministrationStatus.NoChanges
+                when operation.Result.EditorVersion is { } editorVersion =>
+                Ok(new ClientCreationProgressResponse(
+                    operation.Result.ClientId,
+                    operation.Result.CurrentStep,
+                    editorVersion)),
+            ClientAdministrationStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The requested client was not found.",
+                type: ProblemTypes.ClientNotFound),
+            ClientAdministrationStatus.Conflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client has changed since it was loaded. Refresh the record and try again.",
+                type: ProblemTypes.ClientConflict),
+            ClientAdministrationStatus.InvalidState => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The requested creation progress is not valid.",
+                type: ProblemTypes.ClientConflict),
+            _ => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Client creation progress could not be saved.",
+                type: ProblemTypes.ClientConflict),
+        };
+    }
+
+    [HttpPost("basic-details")]
+    [HasPermission(Permissions.Client.Create)]
+    public async Task<ActionResult<ClientDetailsResponse>> CreateBasicDetails(
+        CreateClientBasicDetailsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseEnum(request.Identity.Gender, out ClientGender gender))
+            return InvalidEnum("identity.gender", request.Identity.Gender, typeof(ClientGender));
+
+        var result = await sender.Send(new CreateClientBasicDetailsCommand(
+            ClientApiMapper.ToInput(request.Identity, gender),
+            ClientApiMapper.ToInput(request.CareSetup),
+            request.InsuranceProvider,
+            ClientApiMapper.ToInputs(request.Services)), cancellationToken);
+
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+
+        var mutation = result.Administration;
+        return mutation?.Status switch
+        {
+            ClientAdministrationStatus.Succeeded when mutation.Client is { } client =>
+                CreatedAtAction(nameof(Get), new { clientId = client.Id }, ClientApiMapper.ToResponse(client)),
+            ClientAdministrationStatus.DuplicatePmi => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "That PMI number is already assigned to another client.",
+                type: ProblemTypes.ClientDuplicatePmi),
+            ClientAdministrationStatus.InvalidState => Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "The client record contains an invalid business state.",
+                type: ProblemTypes.ClientInvalidState),
+            ClientAdministrationStatus.ServiceHistoryConflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The selected services conflict with existing client service history.",
+                type: ProblemTypes.ClientServiceHistoryConflict),
+            _ => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client could not be created.",
+                type: ProblemTypes.ClientConflict),
+        };
+    }
+
+    [HttpPut("{clientId:guid}/basic-details")]
+    [HasPermission(Permissions.Client.Edit)]
+    public async Task<ActionResult<ClientMutationResponse>> UpdateBasicDetails(
+        Guid clientId,
+        UpdateClientBasicDetailsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseEnum(request.Identity.Gender, out ClientGender gender))
+            return InvalidEnum("identity.gender", request.Identity.Gender, typeof(ClientGender));
+
+        var result = await sender.Send(new UpdateClientBasicDetailsCommand(
+            clientId,
+            ClientApiMapper.ToInput(request.Identity, gender),
+            ClientApiMapper.ToInput(request.CareSetup),
+            request.InsuranceProvider,
+            ClientApiMapper.ToInputs(request.Services),
+            request.EditorVersion), cancellationToken);
+
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+
+        var mutation = result.Administration;
+        return mutation?.Status switch
+        {
+            ClientAdministrationStatus.Succeeded or ClientAdministrationStatus.NoChanges
+                when mutation.Client is { } client =>
+                Ok(new ClientMutationResponse(client.Id, client.EditorVersion)),
+            ClientAdministrationStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The requested client was not found.",
+                type: ProblemTypes.ClientNotFound),
+            ClientAdministrationStatus.Conflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client has changed since it was loaded. Refresh the record and try again.",
+                type: ProblemTypes.ClientConflict),
+            ClientAdministrationStatus.DuplicatePmi => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "That PMI number is already assigned to another client.",
+                type: ProblemTypes.ClientDuplicatePmi),
+            ClientAdministrationStatus.InvalidState => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Only a pending client can be updated through the creation workflow.",
+                type: ProblemTypes.ClientInvalidState),
+            ClientAdministrationStatus.InvalidServiceChange => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The selected service changes are not valid.",
+                type: ProblemTypes.ClientServiceHistoryConflict),
+            ClientAdministrationStatus.ServiceHistoryConflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The selected services conflict with existing client service history.",
+                type: ProblemTypes.ClientServiceHistoryConflict),
+            _ => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client Basic details could not be updated.",
                 type: ProblemTypes.ClientConflict),
         };
     }
@@ -241,13 +488,13 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
 
         var result = await sender.Send(new UpdateClientCommand(
             clientId,
-            MapIdentity(request.Identity, gender),
-            MapContact(request.Contact),
-            MapCareSetup(request.CareSetup),
-            MapSafety(request.Safety),
-            MapAdditionalProfile(request.AdditionalProfile, programType),
-            MapServices(request.Services),
-            MapLanguages(request.Languages),
+            ClientApiMapper.ToInput(request.Identity, gender),
+            ClientApiMapper.ToInput(request.Contact),
+            ClientApiMapper.ToInput(request.CareSetup),
+            ClientApiMapper.ToInput(request.Safety),
+            ClientApiMapper.ToInput(request.AdditionalProfile, programType),
+            ClientApiMapper.ToInputs(request.Services),
+            ClientApiMapper.ToInputs(request.Languages),
             request.ServiceChangeEffectiveDate,
             request.EditorVersion), cancellationToken);
 
@@ -257,6 +504,101 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
         }
 
         return MapMutation(result.Administration);
+    }
+
+    [HttpPut("{clientId:guid}/additional-information")]
+    [HasPermission(Permissions.Client.Edit)]
+    public async Task<ActionResult<ClientMutationResponse>> UpdateAdditionalInformation(
+        Guid clientId,
+        UpdateClientAdditionalInformationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseEnum(request.AdditionalProfile.ProgramType, out ClientProgramType programType))
+        {
+            return InvalidEnum(
+                "additionalProfile.programType",
+                request.AdditionalProfile.ProgramType,
+                typeof(ClientProgramType));
+        }
+
+        var result = await sender.Send(new UpdateClientAdditionalInformationCommand(
+            clientId,
+            ClientApiMapper.ToInput(request.AdditionalProfile, programType),
+            request.EditorVersion), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+
+        return result.Administration?.Status switch
+        {
+            ClientAdministrationStatus.Succeeded or ClientAdministrationStatus.NoChanges
+                when result.Administration.Client is { } client =>
+                    Ok(new ClientMutationResponse(client.Id, client.EditorVersion)),
+            ClientAdministrationStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The requested client was not found.",
+                type: ProblemTypes.ClientNotFound),
+            ClientAdministrationStatus.Conflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client has changed since it was loaded. Refresh the record and try again.",
+                type: ProblemTypes.ClientConflict),
+            ClientAdministrationStatus.InvalidState => Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "The requested change would place the client in an invalid business state.",
+                type: ProblemTypes.ClientInvalidState),
+            _ => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client could not be changed.",
+                type: ProblemTypes.ClientConflict),
+        };
+    }
+
+    [HttpPut("{clientId:guid}/contact-information")]
+    [HasPermission(Permissions.Client.Edit)]
+    public async Task<ActionResult<ClientMutationResponse>> UpdateContactInformation(
+        Guid clientId,
+        UpdateClientContactInformationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var contact = new ClientContactInput(
+            null,
+            request.Email,
+            request.PrimaryPhone,
+            request.SecondaryPhone,
+            request.AddressLine1,
+            request.AddressLine2,
+            request.City,
+            request.State,
+            request.PostalCode,
+            request.County,
+            request.Country);
+        var result = await sender.Send(new UpdateClientContactInformationCommand(
+            clientId,
+            contact,
+            ClientApiMapper.ToInputs(request.PreferredLanguages),
+            request.EditorVersion), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return MapAuthorizationFailure(failure);
+
+        return result.Administration?.Status switch
+        {
+            ClientAdministrationStatus.Succeeded or ClientAdministrationStatus.NoChanges
+                when result.Administration.Client is { } client =>
+                    Ok(new ClientMutationResponse(client.Id, client.EditorVersion)),
+            ClientAdministrationStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The requested client was not found.",
+                type: ProblemTypes.ClientNotFound),
+            ClientAdministrationStatus.Conflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client has changed since it was loaded. Refresh the record and try again.",
+                type: ProblemTypes.ClientConflict),
+            ClientAdministrationStatus.InvalidState => Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "The requested change would place the client in an invalid business state.",
+                type: ProblemTypes.ClientInvalidState),
+            _ => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client could not be changed.",
+                type: ProblemTypes.ClientConflict),
+        };
     }
 
     [HttpPut("{clientId:guid}/status")]
@@ -286,11 +628,52 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
         return MapMutation(result.Administration);
     }
 
+    [HttpPost("{clientId:guid}/complete-creation")]
+    [HasPermission(Permissions.Client.Edit)]
+    public async Task<ActionResult<CompleteClientCreationResponse>> CompleteCreation(
+        Guid clientId,
+        CompleteClientCreationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new CompleteClientCreationCommand(clientId, request.EditorVersion),
+            cancellationToken);
+        if (result.AuthorizationFailure is { } failure)
+        {
+            return MapAuthorizationFailure(failure);
+        }
+
+        return result.Administration?.Status switch
+        {
+            ClientAdministrationStatus.Succeeded when result.Administration.Client is { } client =>
+                Ok(new CompleteClientCreationResponse(
+                    client.Id,
+                    client.Status.ToString(),
+                    client.EditorVersion)),
+            ClientAdministrationStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "The requested client was not found.",
+                type: ProblemTypes.ClientNotFound),
+            ClientAdministrationStatus.Conflict => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The client has changed since it was loaded. Refresh the record and try again.",
+                type: ProblemTypes.ClientConflict),
+            ClientAdministrationStatus.InvalidState => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Only a pending client can complete creation.",
+                type: ProblemTypes.ClientConflict),
+            _ => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Client creation could not be completed.",
+                type: ProblemTypes.ClientConflict),
+        };
+    }
+
     private ActionResult<ClientDetailsResponse> MapMutation(ClientAdministrationResult? mutation) =>
         mutation?.Status switch
         {
             ClientAdministrationStatus.Succeeded or ClientAdministrationStatus.NoChanges
-                when mutation.Client is { } client => Ok(MapClient(client)),
+                when mutation.Client is { } client => Ok(ClientApiMapper.ToResponse(client)),
             ClientAdministrationStatus.NotFound => Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "The requested client was not found.",
@@ -320,6 +703,22 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
                 title: "The client could not be changed.",
                 type: ProblemTypes.ClientConflict),
         };
+
+    private static ClientCreationStateResponse ToCreationStateResponse(ClientCreationState state)
+    {
+        var client = ClientApiMapper.ToResponse(state.Client);
+        return new(
+            client.Id,
+            client.CareSetup.Status,
+            state.CurrentStep,
+            client.EditorVersion,
+            client.Identity,
+            client.Contact,
+            client.CareSetup,
+            client.AdditionalProfile,
+            client.Services,
+            client.Languages);
+    }
 
     private ActionResult MapAuthorizationFailure(AuthorizationFailure failure) =>
         failure == AuthorizationFailure.Unauthenticated
@@ -397,175 +796,4 @@ public sealed class ClientsController(ISender sender, CareComplyDbContext db, IT
         }
     }
 
-    private static ClientIdentityInput MapIdentity(
-        ClientIdentityRequest request,
-        ClientGender gender) => new(
-        request.FirstName,
-        request.MiddleName,
-        request.LastName,
-        request.PreferredName,
-        request.DateOfBirth,
-        gender,
-        request.PmiNumber,
-        request.Ssn);
-
-    private static ClientContactInput MapContact(ClientContactRequest request) => new(
-        request.InsuranceProvider,
-        request.Email,
-        request.PrimaryPhone,
-        request.SecondaryPhone,
-        request.AddressLine1,
-        request.AddressLine2,
-        request.City,
-        request.State,
-        request.PostalCode,
-        request.County,
-        request.Country);
-
-    private static ClientCareSetupInput MapCareSetup(ClientCareSetupRequest request) => new(
-        request.IntakeDate,
-        request.SocDate,
-        request.ReferralSource,
-        request.Location,
-        request.IsOnboarding,
-        request.EvvAuthorizedHoursPerWeek,
-        request.LocationId,
-        request.SupervisorUserId);
-
-    private static ClientSafetyInput MapSafety(ClientSafetyRequest request) => new(
-        request.SafetyMeasures,
-        request.SpecialEquipment,
-        request.Allergies,
-        request.OtherServices);
-
-    private static ClientAdditionalProfileInput MapAdditionalProfile(
-        ClientAdditionalProfileRequest request,
-        ClientProgramType programType) => new(
-        programType,
-        request.ReferralDetails,
-        request.HomeCareRating,
-        request.MedicalEquipment,
-        request.PcaComplexity,
-        request.Demographics,
-        request.Smokes,
-        request.IsVeteran,
-        request.HasPets,
-        request.LivingArrangement,
-        request.PreferredClinic,
-        request.PreferredHospital,
-        request.PreferredAmbulance,
-        request.CaregiverPreference,
-        request.NutritionalRequirements,
-        request.Diet,
-        request.MealSchedule,
-        request.Notes,
-        request.AdditionalInformation);
-
-    private static ClientServiceInput[] MapServices(
-        IReadOnlyList<ClientServiceRequest>? services) =>
-        services?.Select(service => new ClientServiceInput(service.Code, service.Name)).ToArray() ?? [];
-
-    private static ClientLanguageInput[] MapLanguages(
-        IReadOnlyList<ClientLanguageRequest>? languages) =>
-        languages?.Select(language => new ClientLanguageInput(
-            language.LanguageCode,
-            language.LanguageName,
-            language.IsPrimary)).ToArray() ?? [];
-
-    private static ClientListItemResponse MapListItem(ClientDirectoryItem client) => new(
-        client.Id,
-        BuildDisplayName(client.FirstName, client.MiddleName, client.LastName),
-        client.PreferredName,
-        client.PmiNumber,
-        client.DateOfBirth,
-        client.Gender.ToString(),
-        client.Status.ToString(),
-        client.Location,
-        client.SocDate,
-        client.IsOnboarding,
-        client.ProgramType.ToString(),
-        client.Services.Select(MapService).ToArray(),
-        client.UpdatedAtUtc);
-
-    private static ClientDetailsResponse MapClient(ClientDirectoryDetails client) => new(
-        client.Id,
-        new(
-            client.FirstName,
-            client.MiddleName,
-            client.LastName,
-            client.PreferredName,
-            client.DateOfBirth,
-            client.Gender.ToString(),
-            client.PmiNumber,
-            client.HasSsn),
-        new(
-            client.InsuranceProvider,
-            client.Email,
-            client.PrimaryPhone,
-            client.SecondaryPhone,
-            client.AddressLine1,
-            client.AddressLine2,
-            client.City,
-            client.State,
-            client.PostalCode,
-            client.County,
-            client.Country),
-        new(
-            client.IntakeDate,
-            client.SocDate,
-            client.ReferralSource,
-            client.Status.ToString(),
-            client.Location,
-            client.IsOnboarding,
-            client.EvvAuthorizedHoursPerWeek,
-            client.DischargeDate,
-            client.DischargeReason,
-            client.LocationId,
-            client.SupervisorUserId),
-        new(
-            client.SafetyMeasures,
-            client.SpecialEquipment,
-            client.Allergies,
-            client.OtherServices),
-        new(
-            client.AdditionalProfile.ProgramType.ToString(),
-            client.AdditionalProfile.ReferralDetails,
-            client.AdditionalProfile.HomeCareRating,
-            client.AdditionalProfile.MedicalEquipment,
-            client.AdditionalProfile.PcaComplexity,
-            client.AdditionalProfile.Demographics,
-            client.AdditionalProfile.Smokes,
-            client.AdditionalProfile.IsVeteran,
-            client.AdditionalProfile.HasPets,
-            client.AdditionalProfile.LivingArrangement,
-            client.AdditionalProfile.PreferredClinic,
-            client.AdditionalProfile.PreferredHospital,
-            client.AdditionalProfile.PreferredAmbulance,
-            client.AdditionalProfile.CaregiverPreference,
-            client.AdditionalProfile.NutritionalRequirements,
-            client.AdditionalProfile.Diet,
-            client.AdditionalProfile.MealSchedule,
-            client.AdditionalProfile.Notes,
-            client.AdditionalProfile.AdditionalInformation),
-        client.Services.Select(MapService).ToArray(),
-        client.Languages.Select(language => new ClientLanguageResponse(
-            language.LanguageCode,
-            language.LanguageName,
-            language.IsPrimary)).ToArray(),
-        client.CreatedAtUtc,
-        client.UpdatedAtUtc,
-        client.EditorVersion);
-
-    private static ClientServiceResponse MapService(ClientDirectoryService service) => new(
-        service.Id,
-        service.Code,
-        service.Name,
-        service.StartDate,
-        service.EndDate,
-        service.IsActive);
-
-    private static string BuildDisplayName(string firstName, string middleName, string lastName) =>
-        string.IsNullOrWhiteSpace(middleName)
-            ? $"{firstName} {lastName}"
-            : $"{firstName} {middleName} {lastName}";
 }

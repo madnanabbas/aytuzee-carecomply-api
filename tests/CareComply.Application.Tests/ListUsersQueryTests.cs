@@ -86,10 +86,9 @@ public sealed class ListUsersQueryTests
     }
 
     [Fact]
-    public void AuthorizationFailureFactoryReturnsNoPage()
+    public void AuthorizationFailureResponseReturnsNoPage()
     {
-        var result = new ListUsersAuthorizationFailureFactory()
-            .Create(AuthorizationFailure.Forbidden);
+        var result = ListUsersResult.Denied(AuthorizationFailure.Forbidden);
 
         Assert.Null(result.Page);
         Assert.Equal(AuthorizationFailure.Forbidden, result.AuthorizationFailure);

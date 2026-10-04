@@ -18,9 +18,29 @@ internal sealed class EfClientResponsiblePartyStore(CareComplyDbContext db, ITen
         return parties.Select(Map).ToArray();
     }
 
+    public async Task<IReadOnlyList<ResponsiblePartyItem>> ListForClientAsync(
+        Client client, CancellationToken cancellationToken)
+    {
+        var parties = await db.ClientContacts.AsNoTracking()
+            .Where(contact => contact.ClientId == client.Id
+                && contact.Type == ClientContactType.ResponsibleParty)
+            .OrderBy(contact => contact.Name).ToArrayAsync(cancellationToken);
+        return parties.Select(Map).ToArray();
+    }
+
     public async Task<ResponsiblePartyItem?> CreateAsync(Guid clientId, SaveResponsibleParty request, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
+        return await PersistAsync(clientId, request, cancellationToken);
+    }
+
+    public async Task<ResponsiblePartyItem> CreateForClientAsync(
+        Client client, SaveResponsibleParty request, CancellationToken cancellationToken) =>
+        await PersistAsync(client.Id, request, cancellationToken);
+
+    private async Task<ResponsiblePartyItem> PersistAsync(
+        Guid clientId, SaveResponsibleParty request, CancellationToken cancellationToken)
+    {
         var party = new ClientContact(Guid.CreateVersion7(), clientId, ClientContactType.ResponsibleParty,
             request.Name, request.Relationship, request.Phone, request.Email, false, false, null, null, null);
         party.UpdateResponsibleParty(request.Name, request.Relationship, request.Phone, request.Email,
@@ -35,6 +55,19 @@ internal sealed class EfClientResponsiblePartyStore(CareComplyDbContext db, ITen
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
         var party = await db.ClientContacts.SingleOrDefaultAsync(contact => contact.Id == partyId
             && contact.ClientId == clientId && contact.Type == ClientContactType.ResponsibleParty, cancellationToken);
+        if (party is null) return null;
+        party.UpdateResponsibleParty(request.Name, request.Relationship, request.Phone, request.Email,
+            request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive);
+        await db.SaveChangesAsync(cancellationToken);
+        return Map(party);
+    }
+
+    public async Task<ResponsiblePartyItem?> UpdateForClientAsync(
+        Client client, Guid partyId, SaveResponsibleParty request, CancellationToken cancellationToken)
+    {
+        var party = await db.ClientContacts.SingleOrDefaultAsync(contact => contact.Id == partyId
+            && contact.ClientId == client.Id && contact.Type == ClientContactType.ResponsibleParty,
+            cancellationToken);
         if (party is null) return null;
         party.UpdateResponsibleParty(request.Name, request.Relationship, request.Phone, request.Email,
             request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive);

@@ -19,9 +19,30 @@ internal sealed class EfClientClinicalContactStore(CareComplyDbContext db, ITena
         return contacts.Select(Map).ToArray();
     }
 
+    public async Task<IReadOnlyList<ClinicalContactItem>> ListForClientAsync(
+        Client client, ClientContactType type, CancellationToken cancellationToken)
+    {
+        if (type is not (ClientContactType.ConsultationProvider or ClientContactType.Physician))
+            throw new ArgumentOutOfRangeException(nameof(type));
+        var contacts = await db.ClientContacts.AsNoTracking()
+            .Where(x => x.ClientId == client.Id && x.Type == type)
+            .OrderBy(x => x.Name).ToArrayAsync(cancellationToken);
+        return contacts.Select(Map).ToArray();
+    }
+
     public async Task<ClinicalContactItem?> CreateConsultationProviderAsync(Guid clientId, SaveConsultationProvider request, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
+        return await PersistConsultationProviderAsync(clientId, request, cancellationToken);
+    }
+
+    public async Task<ClinicalContactItem> CreateConsultationProviderForClientAsync(
+        Client client, SaveConsultationProvider request, CancellationToken cancellationToken)
+        => await PersistConsultationProviderAsync(client.Id, request, cancellationToken);
+
+    private async Task<ClinicalContactItem> PersistConsultationProviderAsync(
+        Guid clientId, SaveConsultationProvider request, CancellationToken cancellationToken)
+    {
         var contact = NewContact(clientId, ClientContactType.ConsultationProvider, request.Name);
         contact.UpdateConsultationProvider(request.Name, request.Phone, request.Email,
             request.SupportProviderName, request.SupportProviderPhone, request.SupportProviderAddress, request.IsActive);
@@ -40,9 +61,33 @@ internal sealed class EfClientClinicalContactStore(CareComplyDbContext db, ITena
         return Map(contact);
     }
 
+    public async Task<ClinicalContactItem?> UpdateConsultationProviderForClientAsync(
+        Client client, Guid contactId, SaveConsultationProvider request, CancellationToken cancellationToken)
+    {
+        var contact = await db.ClientContacts.SingleOrDefaultAsync(
+            x => x.ClientId == client.Id && x.Id == contactId
+                && x.Type == ClientContactType.ConsultationProvider, cancellationToken);
+        if (contact is null) return null;
+        contact.UpdateConsultationProvider(request.Name, request.Phone, request.Email,
+            request.SupportProviderName, request.SupportProviderPhone,
+            request.SupportProviderAddress, request.IsActive);
+        await db.SaveChangesAsync(cancellationToken);
+        return Map(contact);
+    }
+
     public async Task<ClinicalContactItem?> CreatePhysicianAsync(Guid clientId, SavePhysician request, CancellationToken cancellationToken)
     {
         if (!await CanAccessClient(clientId, cancellationToken)) return null;
+        return await PersistPhysicianAsync(clientId, request, cancellationToken);
+    }
+
+    public async Task<ClinicalContactItem> CreatePhysicianForClientAsync(
+        Client client, SavePhysician request, CancellationToken cancellationToken) =>
+        await PersistPhysicianAsync(client.Id, request, cancellationToken);
+
+    private async Task<ClinicalContactItem> PersistPhysicianAsync(
+        Guid clientId, SavePhysician request, CancellationToken cancellationToken)
+    {
         var contact = NewContact(clientId, ClientContactType.Physician, request.Name);
         contact.UpdatePhysician(request.Name, request.Npi, request.Phone, request.Fax,
             request.Address, request.PostalCode, request.City, request.State, request.IsActive);
@@ -54,6 +99,19 @@ internal sealed class EfClientClinicalContactStore(CareComplyDbContext db, ITena
     public async Task<ClinicalContactItem?> UpdatePhysicianAsync(Guid clientId, Guid contactId, SavePhysician request, CancellationToken cancellationToken)
     {
         var contact = await FindAccessibleContact(clientId, contactId, ClientContactType.Physician, cancellationToken);
+        if (contact is null) return null;
+        contact.UpdatePhysician(request.Name, request.Npi, request.Phone, request.Fax,
+            request.Address, request.PostalCode, request.City, request.State, request.IsActive);
+        await db.SaveChangesAsync(cancellationToken);
+        return Map(contact);
+    }
+
+    public async Task<ClinicalContactItem?> UpdatePhysicianForClientAsync(
+        Client client, Guid contactId, SavePhysician request, CancellationToken cancellationToken)
+    {
+        var contact = await db.ClientContacts.SingleOrDefaultAsync(
+            x => x.ClientId == client.Id && x.Id == contactId
+                && x.Type == ClientContactType.Physician, cancellationToken);
         if (contact is null) return null;
         contact.UpdatePhysician(request.Name, request.Npi, request.Phone, request.Fax,
             request.Address, request.PostalCode, request.City, request.State, request.IsActive);

@@ -75,6 +75,7 @@ internal static class PermissionSeedData
             new(88, Permissions.ClientCareCoordinator.View), new(89, Permissions.ClientCareCoordinator.Create), new(90, Permissions.ClientCareCoordinator.Edit),
             new(91, Permissions.ClientConsultationProvider.View), new(92, Permissions.ClientConsultationProvider.Create), new(93, Permissions.ClientConsultationProvider.Edit),
             new(94, Permissions.ClientPhysician.View), new(95, Permissions.ClientPhysician.Create), new(96, Permissions.ClientPhysician.Edit),
+            new(97, Permissions.Client.GuestInvite),
         ]);
 }
 

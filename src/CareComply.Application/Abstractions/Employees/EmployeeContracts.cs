@@ -19,6 +19,13 @@ public sealed record EmployeeContact(string Name, string Phone, string Relations
 public sealed record EmployeeListItemResponse(Guid Id, Guid? CompanyId, string FirstName, string LastName, string PreferredName,
     string Email, string Phone, string JobTitle, bool IsActive, DateOnly? HireDate, IReadOnlyList<string> Locations);
 
+public sealed record EmployeeListResponse(
+    IReadOnlyList<EmployeeListItemResponse> Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount,
+    int TotalPages);
+
 public sealed record EmployeeDetailsResponse(Guid Id, Guid CompanyId, IReadOnlyList<Guid> LocationIds,
     string FirstName, string MiddleName, string LastName, string PreferredName, string Email, string Phone,
     string SecondaryPhone, string JobTitle, string SecondaryJobTitle, bool IsActive, DateOnly? HireDate,
@@ -46,7 +53,7 @@ public sealed record EmployeeDetailsResponse(Guid Id, Guid CompanyId, IReadOnlyL
     bool AllowAggregator, bool OverrideRestriction, bool EvvOnly, bool RestrictDateAndTime,
     string EvvEmail, bool HasEvvPassword, bool HasIvrPin, string EvvIvrAuthorization, string EmployeeTier,
     DateOnly? TierEffectiveDate, bool IsOnboarding, bool AllowVisitScreen, bool AllowTravelTime,
-    bool AllowManualEntry, bool AllowOneTimeLogin);
+    bool AllowManualEntry, bool AllowOneTimeLogin, string EditorVersion);
 
 public sealed record SaveEmployeeRequest(Guid? CompanyId, IReadOnlyList<Guid>? LocationIds, string FirstName,
     string? MiddleName, string LastName, string? PreferredName, string Email, string? Phone,
@@ -76,4 +83,4 @@ public sealed record SaveEmployeeRequest(Guid? CompanyId, IReadOnlyList<Guid>? L
     bool AllowAggregator, bool OverrideRestriction, bool EvvOnly, bool RestrictDateAndTime,
     string? EvvEmail, string? EvvPassword, string? IvrPin, string? EvvIvrAuthorization, string? EmployeeTier,
     DateOnly? TierEffectiveDate, bool IsOnboarding, bool AllowVisitScreen, bool AllowTravelTime,
-    bool AllowManualEntry, bool AllowOneTimeLogin);
+    bool AllowManualEntry, bool AllowOneTimeLogin, string? EditorVersion = null);

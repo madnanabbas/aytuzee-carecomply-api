@@ -7,6 +7,7 @@ public sealed record SetUserStatusResult(
     UserStatusUpdateResult? Update,
     bool SelfDeactivationDenied,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<SetUserStatusResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString()
         ?? (SelfDeactivationDenied ? "SelfDeactivationDenied" : null)

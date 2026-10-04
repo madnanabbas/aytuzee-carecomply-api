@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Reflection;
@@ -13,7 +12,6 @@ using CareComply.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
@@ -253,9 +251,11 @@ public sealed class PermissionIntegrationTests(SqlServerApiFactory factory)
         Assert.Equal(
             HttpStatusCode.NoContent,
             (await LoginAsync(client, user.Email!)).StatusCode);
-        using var commandCounter = new PermissionResolutionCommandCounter();
+        using var commandCounter = factory.PermissionQueryCounter.BeginOperation();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/test/permission");
+        commandCounter.AddTo(request);
 
-        var response = await client.GetAsync("/api/test/permission");
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(1, commandCounter.CommandCount);
@@ -419,55 +419,4 @@ public sealed class PermissionIntegrationTests(SqlServerApiFactory factory)
             System.Globalization.CultureInfo.InvariantCulture) == 1;
     }
 
-    private sealed class PermissionResolutionCommandCounter :
-        IObserver<DiagnosticListener>,
-        IObserver<KeyValuePair<string, object?>>, IDisposable
-    {
-        private readonly List<IDisposable> _subscriptions = [];
-        private readonly IDisposable _allListenersSubscription;
-        private int _commandCount;
-
-        public PermissionResolutionCommandCounter() =>
-            _allListenersSubscription = DiagnosticListener.AllListeners.Subscribe(this);
-
-        public int CommandCount => Volatile.Read(ref _commandCount);
-
-        public void OnNext(DiagnosticListener value)
-        {
-            if (value.Name == DbLoggerCategory.Name)
-            {
-                _subscriptions.Add(value.Subscribe(this));
-            }
-        }
-
-        public void OnNext(KeyValuePair<string, object?> value)
-        {
-            if (value.Key == RelationalEventId.CommandExecuted.Name
-                && value.Value is CommandExecutedEventData eventData
-                && eventData.Command.CommandText.Contains(
-                    "CareComply.PermissionResolution",
-                    StringComparison.Ordinal))
-            {
-                Interlocked.Increment(ref _commandCount);
-            }
-        }
-
-        public void OnCompleted()
-        {
-        }
-
-        public void OnError(Exception error)
-        {
-        }
-
-        public void Dispose()
-        {
-            _allListenersSubscription.Dispose();
-
-            foreach (var subscription in _subscriptions)
-            {
-                subscription.Dispose();
-            }
-        }
-    }
 }

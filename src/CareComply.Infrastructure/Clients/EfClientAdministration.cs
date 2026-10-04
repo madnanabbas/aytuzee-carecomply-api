@@ -1,6 +1,5 @@
 using CareComply.Application.Abstractions.Clients;
 using CareComply.Domain.Clients;
-using CareComply.Domain.Companies;
 using CareComply.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using CareComply.Application.Abstractions.Tenancy;
@@ -12,8 +11,53 @@ internal sealed class EfClientAdministration(
     IClientDirectory directory,
     IClientSensitiveData sensitiveData,
     ITenantScopeAccessor tenantScopeAccessor,
+    ClientAssignmentResolver assignmentResolver,
+    ClientBasicDetailsPersistence basicDetailsPersistence,
+    ClientChangeDetector changeDetector,
+    ClientServiceSynchronizer serviceSynchronizer,
+    ClientLanguageSynchronizer languageSynchronizer,
+    ClientContactInformationPersistence contactInformationPersistence,
     TimeProvider timeProvider) : IClientAdministration
 {
+    public async Task<ClientAdministrationResult> CreateBasicDetailsAsync(
+        ClientBasicDetailsCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant?.CompanyId is null) return Failed(ClientAdministrationStatus.NotFound);
+
+        try
+        {
+            var preparation = await basicDetailsPersistence.PrepareAsync(
+                tenant.CompanyId.Value,
+                request,
+                cancellationToken);
+            if (preparation.Client is null)
+            {
+                return Failed(preparation.Status);
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+
+            return new(
+                ClientAdministrationStatus.Succeeded,
+                await GetRequiredDetailsAsync(preparation.Client.Id, cancellationToken),
+                ["Core", "Services"]);
+        }
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsDuplicatePmi(exception))
+        {
+            return Failed(ClientAdministrationStatus.DuplicatePmi);
+        }
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsServiceHistoryConflict(exception))
+        {
+            return Failed(ClientAdministrationStatus.ServiceHistoryConflict);
+        }
+        catch (ArgumentException)
+        {
+            return Failed(ClientAdministrationStatus.InvalidState);
+        }
+    }
+
     public async Task<ClientAdministrationResult> CreateAsync(
         ClientCreateRequest request,
         CancellationToken cancellationToken)
@@ -21,14 +65,18 @@ internal sealed class EfClientAdministration(
         var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
         if (tenant?.CompanyId is null) return Failed(ClientAdministrationStatus.NotFound);
 
-        var location = await ResolveLocationAsync(
+        var location = await assignmentResolver.ResolveLocationAsync(
             tenant.CompanyId.Value,
             request.CareSetup.LocationId,
             request.CareSetup.Location,
             cancellationToken);
         if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
 
-        if (!await ValidSupervisor(request.CareSetup.SupervisorUserId, tenant.CompanyId.Value, location.Id, cancellationToken))
+        if (!await assignmentResolver.IsValidSupervisorAsync(
+                request.CareSetup.SupervisorUserId,
+                tenant.CompanyId.Value,
+                location.Id,
+                cancellationToken))
             return Failed(ClientAdministrationStatus.InvalidState);
 
         var pmiNumber = NormalizeRequired(request.Identity.PmiNumber);
@@ -98,7 +146,7 @@ internal sealed class EfClientAdministration(
                 now);
 
             var profile = new ClientAdditionalProfile(clientId);
-            ApplyProfile(profile, request.AdditionalProfile);
+            ClientProfilePersistence.Apply(profile, request.AdditionalProfile);
 
             var services = request.Services
                 .Select(service => new ClientService(
@@ -127,11 +175,11 @@ internal sealed class EfClientAdministration(
                 await GetRequiredDetailsAsync(clientId, cancellationToken),
                 ["Core", "AdditionalProfile", "Services", "Languages"]);
         }
-        catch (DbUpdateException exception) when (IsConstraint(exception, "UX_Clients_PmiNumber"))
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsDuplicatePmi(exception))
         {
             return Failed(ClientAdministrationStatus.DuplicatePmi);
         }
-        catch (DbUpdateException exception) when (IsServiceConstraint(exception))
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsServiceHistoryConflict(exception))
         {
             return Failed(ClientAdministrationStatus.ServiceHistoryConflict);
         }
@@ -139,6 +187,212 @@ internal sealed class EfClientAdministration(
         {
             return Failed(ClientAdministrationStatus.InvalidState);
         }
+    }
+
+    public async Task<ClientAdministrationResult> UpdateBasicDetailsAsync(
+        ClientBasicDetailsUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+
+        var client = await context.Clients.SingleOrDefaultAsync(
+            item => item.Id == request.ClientId
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access =>
+                        access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
+            cancellationToken);
+        if (client is null) return Failed(ClientAdministrationStatus.NotFound);
+        if (client.Status != ClientStatus.Pending) return Failed(ClientAdministrationStatus.InvalidState);
+        if (!ClientEditorVersion.Matches(client.RowVersion, request.EditorVersion))
+            return Failed(ClientAdministrationStatus.Conflict);
+
+        var location = await assignmentResolver.ResolveLocationAsync(
+            client.CompanyId,
+            request.CareSetup.LocationId,
+            request.CareSetup.Location,
+            cancellationToken);
+        if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
+
+        if (!tenant.IsPlatformAdministrator && !await context.UserLocations.AsNoTracking().AnyAsync(
+                access => access.UserId == tenant.UserId && access.LocationId == location.Id,
+                cancellationToken))
+            return Failed(ClientAdministrationStatus.NotFound);
+
+        if (!await assignmentResolver.IsValidSupervisorAsync(
+                request.CareSetup.SupervisorUserId,
+                client.CompanyId,
+                location.Id,
+                cancellationToken))
+            return Failed(ClientAdministrationStatus.InvalidState);
+
+        var pmiNumber = NormalizeRequired(request.Identity.PmiNumber);
+        if (!string.Equals(client.PmiNumber, pmiNumber, StringComparison.OrdinalIgnoreCase)
+            && await context.Clients.AsNoTracking().AnyAsync(
+                item => item.Id != request.ClientId
+                    && item.CompanyId == client.CompanyId
+                    && item.PmiNumber == pmiNumber,
+                cancellationToken))
+            return Failed(ClientAdministrationStatus.DuplicatePmi);
+
+        var activeServices = await context.ClientServices
+            .Where(item => item.ClientId == request.ClientId && item.IsActive)
+            .ToListAsync(cancellationToken);
+        var requestedSsn = string.IsNullOrWhiteSpace(request.Identity.Ssn) ? null : request.Identity.Ssn;
+        var identityChanged = ClientChangeDetector.IdentityChanged(client, request.Identity);
+        var ssnChanged = changeDetector.SsnChanged(client, requestedSsn);
+        var careChanged = ClientChangeDetector.CareChanged(client, request.CareSetup, request.InsuranceProvider)
+            || client.SupervisorUserId != request.CareSetup.SupervisorUserId
+            || client.LocationId != location.Id;
+        var serviceChange = ClientServiceSynchronizer.Analyze(activeServices, request.Services);
+
+        if (serviceChange.ServicesToEnd.Any(service => request.CareSetup.SocDate < service.StartDate))
+            return Failed(ClientAdministrationStatus.InvalidServiceChange);
+
+        if (!identityChanged && !ssnChanged && !careChanged && !serviceChange.HasChanges)
+            return new(
+                ClientAdministrationStatus.NoChanges,
+                await GetRequiredDetailsAsync(request.ClientId, cancellationToken),
+                []);
+
+        var now = timeProvider.GetUtcNow();
+        var changedSections = new List<string>(2);
+
+        try
+        {
+            if (identityChanged)
+            {
+                client.ChangeIdentity(
+                    request.Identity.FirstName,
+                    request.Identity.MiddleName,
+                    request.Identity.LastName,
+                    request.Identity.PreferredName,
+                    request.Identity.DateOfBirth,
+                    request.Identity.Gender,
+                    pmiNumber,
+                    now);
+                changedSections.Add("BasicDetails");
+            }
+
+            if (ssnChanged)
+            {
+                client.ChangeProtectedSsn(sensitiveData.Protect(requestedSsn!), now);
+                if (!changedSections.Contains("BasicDetails", StringComparer.Ordinal))
+                    changedSections.Add("BasicDetails");
+            }
+
+            if (careChanged)
+            {
+                client.ChangeCareSetup(
+                    request.CareSetup.IntakeDate,
+                    request.CareSetup.SocDate,
+                    ClientStatus.Pending,
+                    request.CareSetup.ReferralSource,
+                    location.Name,
+                    request.InsuranceProvider,
+                    request.CareSetup.IsOnboarding,
+                    request.CareSetup.EvvAuthorizedHoursPerWeek,
+                    null,
+                    null,
+                    now);
+                client.AssignLocation(location.Id, location.Name, now);
+                client.AssignSupervisor(request.CareSetup.SupervisorUserId, now);
+                if (!changedSections.Contains("BasicDetails", StringComparer.Ordinal))
+                    changedSections.Add("BasicDetails");
+            }
+
+            if (serviceChange.HasChanges)
+            {
+                serviceSynchronizer.Apply(
+                    request.ClientId,
+                    request.Services,
+                    serviceChange,
+                    request.CareSetup.SocDate,
+                    now,
+                    client);
+                changedSections.Add("Services");
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+            return new(
+                ClientAdministrationStatus.Succeeded,
+                await GetRequiredDetailsAsync(request.ClientId, cancellationToken),
+                changedSections);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Failed(ClientAdministrationStatus.Conflict);
+        }
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsDuplicatePmi(exception))
+        {
+            return Failed(ClientAdministrationStatus.DuplicatePmi);
+        }
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsServiceHistoryConflict(exception))
+        {
+            return Failed(ClientAdministrationStatus.ServiceHistoryConflict);
+        }
+        catch (ArgumentException)
+        {
+            return Failed(ClientAdministrationStatus.InvalidState);
+        }
+    }
+
+    public async Task<ClientAdministrationResult> UpdateAdditionalInformationAsync(
+        ClientAdditionalInformationUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+
+        var client = await context.Clients.SingleOrDefaultAsync(
+            item => item.Id == request.ClientId
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access =>
+                        access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
+            cancellationToken);
+        if (client is null) return Failed(ClientAdministrationStatus.NotFound);
+        var status = await ClientAdditionalInformationPersistence.ApplyAsync(
+            context,
+            client,
+            request.AdditionalProfile,
+            request.EditorVersion,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        return status is ClientAdministrationStatus.Succeeded or ClientAdministrationStatus.NoChanges
+            ? new(
+                status,
+                await GetRequiredDetailsAsync(request.ClientId, cancellationToken),
+                status == ClientAdministrationStatus.Succeeded ? ["AdditionalProfile"] : [])
+            : Failed(status);
+    }
+
+    public async Task<ClientAdministrationResult> UpdateContactInformationAsync(
+        ClientContactInformationUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+
+        var client = await context.Clients.SingleOrDefaultAsync(
+            item => item.Id == request.ClientId
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access =>
+                        access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
+            cancellationToken);
+        if (client is null) return Failed(ClientAdministrationStatus.NotFound);
+        var persistence = await contactInformationPersistence.ApplyAsync(
+            client, request.Contact, request.Languages, request.EditorVersion,
+            timeProvider.GetUtcNow(), cancellationToken);
+        if (persistence.Status is not (ClientAdministrationStatus.Succeeded or ClientAdministrationStatus.NoChanges))
+            return Failed(persistence.Status);
+
+        var changedSections = new List<string>();
+        if (persistence.ContactChanged) changedSections.Add("ContactInformation");
+        if (persistence.LanguagesChanged) changedSections.Add("Languages");
+        return new(
+            persistence.Status,
+            await GetRequiredDetailsAsync(request.ClientId, cancellationToken),
+            changedSections);
     }
 
     public async Task<ClientAdministrationResult> UpdateAsync(
@@ -158,7 +412,7 @@ internal sealed class EfClientAdministration(
             return Failed(ClientAdministrationStatus.NotFound);
         }
 
-        var location = await ResolveLocationAsync(
+        var location = await assignmentResolver.ResolveLocationAsync(
             client.CompanyId,
             request.CareSetup.LocationId,
             request.CareSetup.Location,
@@ -166,7 +420,11 @@ internal sealed class EfClientAdministration(
         if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
 
         if (!(request.CareSetup.SupervisorUserId == client.SupervisorUserId && location.Id == client.LocationId) &&
-            !await ValidSupervisor(request.CareSetup.SupervisorUserId, client.CompanyId, location.Id, cancellationToken))
+            !await assignmentResolver.IsValidSupervisorAsync(
+                request.CareSetup.SupervisorUserId,
+                client.CompanyId,
+                location.Id,
+                cancellationToken))
             return Failed(ClientAdministrationStatus.InvalidState);
 
         if (!ClientEditorVersion.Matches(client.RowVersion, request.EditorVersion))
@@ -196,16 +454,16 @@ internal sealed class EfClientAdministration(
             .ToListAsync(cancellationToken);
 
         var changedSections = new List<string>(6);
-        var identityChanged = IdentityChanged(client, request.Identity);
-        var ssnChanged = !SsnMatches(client.ProtectedSsn, request.Identity.Ssn, sensitiveData);
-        var contactChanged = ContactChanged(client, request.Contact);
-        var careChanged = CareChanged(client, request.CareSetup, request.Contact.InsuranceProvider)
+        var identityChanged = ClientChangeDetector.IdentityChanged(client, request.Identity);
+        var ssnChanged = changeDetector.SsnChanged(client, request.Identity.Ssn);
+        var contactChanged = ClientChangeDetector.ContactChanged(client, request.Contact);
+        var careChanged = ClientChangeDetector.CareChanged(client, request.CareSetup, request.Contact.InsuranceProvider)
             || client.SupervisorUserId != request.CareSetup.SupervisorUserId
             || client.LocationId != location.Id;
-        var safetyChanged = SafetyChanged(client, request.Safety);
-        var profileChanged = ProfileChanged(profile, request.AdditionalProfile);
-        var serviceChange = AnalyzeServiceChanges(activeServices, request.Services);
-        var languagesChanged = LanguagesChanged(languages, request.Languages);
+        var safetyChanged = ClientChangeDetector.SafetyChanged(client, request.Safety);
+        var profileChanged = ClientProfilePersistence.HasChanges(profile, request.AdditionalProfile);
+        var serviceChange = ClientServiceSynchronizer.Analyze(activeServices, request.Services);
+        var languagesChanged = ClientLanguageSynchronizer.HasChanges(languages, request.Languages);
 
         if (serviceChange.ActiveSetChanged && !request.ServiceChangeEffectiveDate.HasValue)
         {
@@ -315,16 +573,15 @@ internal sealed class EfClientAdministration(
                     context.ClientAdditionalProfiles.Add(profile);
                 }
 
-                ApplyProfile(profile, request.AdditionalProfile);
+                ClientProfilePersistence.Apply(profile, request.AdditionalProfile);
                 client.MarkUpdated(now);
                 changedSections.Add("AdditionalProfile");
             }
 
             if (serviceChange.HasChanges)
             {
-                ApplyServiceChanges(
+                serviceSynchronizer.Apply(
                     request.ClientId,
-                    activeServices,
                     request.Services,
                     serviceChange,
                     request.ServiceChangeEffectiveDate,
@@ -335,22 +592,13 @@ internal sealed class EfClientAdministration(
 
             if (languagesChanged)
             {
-                // Remove the old primary preference in a separate database statement so the
-                // filtered unique index can never observe two primary rows during replacement.
-                if (languages.Count > 0)
-                {
-                    context.ClientLanguagePreferences.RemoveRange(languages);
-                    client.MarkUpdated(now);
-                    await context.SaveChangesAsync(cancellationToken);
-                }
-
-                context.ClientLanguagePreferences.AddRange(request.Languages.Select(language =>
-                    new ClientLanguagePreference(
-                        request.ClientId,
-                        language.LanguageCode,
-                        language.LanguageName,
-                        language.IsPrimary)));
-                client.MarkUpdated(now);
+                await languageSynchronizer.ReplaceAsync(
+                    request.ClientId,
+                    languages,
+                    request.Languages,
+                    client,
+                    now,
+                    cancellationToken);
                 changedSections.Add("Languages");
             }
 
@@ -364,11 +612,11 @@ internal sealed class EfClientAdministration(
         {
             return Failed(ClientAdministrationStatus.Conflict);
         }
-        catch (DbUpdateException exception) when (IsConstraint(exception, "UX_Clients_PmiNumber"))
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsDuplicatePmi(exception))
         {
             return Failed(ClientAdministrationStatus.DuplicatePmi);
         }
-        catch (DbUpdateException exception) when (IsServiceConstraint(exception))
+        catch (DbUpdateException exception) when (ClientPersistenceErrorClassifier.IsServiceHistoryConflict(exception))
         {
             return Failed(ClientAdministrationStatus.ServiceHistoryConflict);
         }
@@ -447,234 +695,120 @@ internal sealed class EfClientAdministration(
         }
     }
 
+    public async Task<ClientAdministrationResult> CompleteCreationAsync(
+        ClientCreationCompletionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return Failed(ClientAdministrationStatus.NotFound);
+
+        var client = await context.Clients.SingleOrDefaultAsync(
+            item => item.Id == request.ClientId
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access => access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
+            cancellationToken);
+        if (client is null) return Failed(ClientAdministrationStatus.NotFound);
+
+        if (!ClientEditorVersion.Matches(client.RowVersion, request.EditorVersion))
+        {
+            return Failed(ClientAdministrationStatus.Conflict);
+        }
+
+        if (client.Status != ClientStatus.Pending)
+        {
+            return new(ClientAdministrationStatus.InvalidState, null, [], client.Status);
+        }
+
+        try
+        {
+            client.ChangeStatus(ClientStatus.Active, null, null, timeProvider.GetUtcNow());
+            await context.SaveChangesAsync(cancellationToken);
+
+            return new(
+                ClientAdministrationStatus.Succeeded,
+                await GetRequiredDetailsAsync(request.ClientId, cancellationToken),
+                ["Status"],
+                ClientStatus.Pending);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new(ClientAdministrationStatus.Conflict, null, [], ClientStatus.Pending);
+        }
+        catch (ArgumentException)
+        {
+            return new(ClientAdministrationStatus.InvalidState, null, [], ClientStatus.Pending);
+        }
+    }
+
+    public async Task<ClientCreationStateResult> GetCreationStateAsync(
+        Guid clientId,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null) return new(ClientAdministrationStatus.NotFound);
+
+        var client = await context.Clients.AsNoTracking().SingleOrDefaultAsync(
+            item => item.Id == clientId
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access =>
+                        access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
+            cancellationToken);
+        if (client is null) return new(ClientAdministrationStatus.NotFound);
+        if (client.Status != ClientStatus.Pending)
+            return new(ClientAdministrationStatus.InvalidState);
+
+        var details = await GetRequiredDetailsAsync(clientId, cancellationToken);
+        return new(
+            ClientAdministrationStatus.Succeeded,
+            new(details, Math.Clamp(client.CreationProgressStep, 1, 10)));
+    }
+
+    public async Task<ClientCreationProgressResult> AdvanceCreationProgressAsync(
+        ClientCreationProgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await tenantScopeAccessor.GetAsync(cancellationToken);
+        if (tenant is null)
+            return new(ClientAdministrationStatus.NotFound, request.ClientId, 0);
+
+        var client = await context.Clients.SingleOrDefaultAsync(
+            item => item.Id == request.ClientId
+                && (tenant.IsPlatformAdministrator || (item.CompanyId == tenant.CompanyId
+                    && context.UserLocations.Any(access =>
+                        access.UserId == tenant.UserId && access.LocationId == item.LocationId))),
+            cancellationToken);
+        if (client is null)
+            return new(ClientAdministrationStatus.NotFound, request.ClientId, 0);
+        if (!ClientEditorVersion.Matches(client.RowVersion, request.EditorVersion))
+            return new(ClientAdministrationStatus.Conflict, request.ClientId, client.CreationProgressStep);
+        if (client.Status != ClientStatus.Pending)
+            return new(ClientAdministrationStatus.InvalidState, request.ClientId, client.CreationProgressStep);
+
+        try
+        {
+            var changed = client.AdvanceCreationProgress(request.Step, timeProvider.GetUtcNow());
+            if (changed) await context.SaveChangesAsync(cancellationToken);
+            return new(
+                changed ? ClientAdministrationStatus.Succeeded : ClientAdministrationStatus.NoChanges,
+                request.ClientId,
+                client.CreationProgressStep,
+                ClientEditorVersion.Create(client.RowVersion));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new(ClientAdministrationStatus.Conflict, request.ClientId, client.CreationProgressStep);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            return new(ClientAdministrationStatus.InvalidState, request.ClientId, client.CreationProgressStep);
+        }
+    }
+
     private async Task<ClientDirectoryDetails> GetRequiredDetailsAsync(
         Guid clientId,
         CancellationToken cancellationToken) =>
         await directory.GetByIdAsync(clientId, cancellationToken)
         ?? throw new InvalidOperationException("The client could not be reloaded after a successful mutation.");
-
-    private static void ApplyProfile(
-        ClientAdditionalProfile profile,
-        ClientAdditionalProfileInput input) =>
-        profile.Change(
-            input.ProgramType,
-            input.ReferralDetails,
-            input.HomeCareRating,
-            input.MedicalEquipment,
-            input.PcaComplexity,
-            input.Demographics,
-            input.Smokes,
-            input.IsVeteran,
-            input.HasPets,
-            input.LivingArrangement,
-            input.PreferredClinic,
-            input.PreferredHospital,
-            input.PreferredAmbulance,
-            input.CaregiverPreference,
-            input.NutritionalRequirements,
-            input.Diet,
-            input.MealSchedule,
-            input.Notes,
-            input.AdditionalInformation);
-
-    private static bool IdentityChanged(Client client, ClientIdentityInput input) =>
-        !Equal(client.FirstName, input.FirstName)
-        || !Equal(client.MiddleName, input.MiddleName)
-        || !Equal(client.LastName, input.LastName)
-        || !Equal(client.PreferredName, input.PreferredName)
-        || client.DateOfBirth != input.DateOfBirth
-        || client.Gender != input.Gender
-        || !Equal(client.PmiNumber, input.PmiNumber, StringComparison.OrdinalIgnoreCase);
-
-    private static bool ContactChanged(Client client, ClientContactInput input) =>
-        !Equal(client.Email, input.Email, StringComparison.OrdinalIgnoreCase)
-        || !Equal(client.PrimaryPhone, input.PrimaryPhone)
-        || !Equal(client.SecondaryPhone, input.SecondaryPhone)
-        || !Equal(client.AddressLine1, input.AddressLine1)
-        || !Equal(client.AddressLine2, input.AddressLine2)
-        || !Equal(client.City, input.City)
-        || !Equal(client.State, input.State)
-        || !Equal(client.PostalCode, input.PostalCode)
-        || !Equal(client.County, input.County)
-        || !Equal(client.Country, input.Country);
-
-    private static bool SsnMatches(
-        string protectedSsn,
-        string? requestedSsn,
-        IClientSensitiveData sensitiveData)
-    {
-        // Omitted SSN means "leave unchanged" so ordinary client edits cannot clear protected data.
-        if (requestedSsn is null) return true;
-        if (string.IsNullOrWhiteSpace(protectedSsn)) return string.IsNullOrWhiteSpace(requestedSsn);
-        if (string.IsNullOrWhiteSpace(requestedSsn)) return false;
-        try
-        {
-            return string.Equals(sensitiveData.Unprotect(protectedSsn), requestedSsn, StringComparison.Ordinal);
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            return false;
-        }
-    }
-
-    private Task<bool> ValidSupervisor(Guid? supervisorId, Guid companyId, Guid locationId, CancellationToken ct) =>
-        supervisorId is null ? Task.FromResult(true) : context.Users.AsNoTracking().AnyAsync(user =>
-            user.Id == supervisorId && user.CompanyId == companyId && user.IsEmployee && user.IsActive &&
-            context.UserLocations.Any(access => access.UserId == user.Id && access.LocationId == locationId), ct);
-
-    private static bool CareChanged(
-        Client client,
-        ClientCareSetupInput input,
-        string? insuranceProvider) =>
-        client.IntakeDate != input.IntakeDate
-        || client.SocDate != input.SocDate
-        || !Equal(client.ReferralSource, input.ReferralSource)
-        || !Equal(client.Location, input.Location)
-        || !Equal(client.InsuranceProvider, insuranceProvider)
-        || client.IsOnboarding != input.IsOnboarding
-        || client.EvvAuthorizedHoursPerWeek != input.EvvAuthorizedHoursPerWeek;
-
-    private static bool SafetyChanged(Client client, ClientSafetyInput input) =>
-        !Equal(client.SafetyMeasures, input.SafetyMeasures)
-        || !Equal(client.SpecialEquipment, input.SpecialEquipment)
-        || !Equal(client.Allergies, input.Allergies)
-        || !Equal(client.OtherServices, input.OtherServices);
-
-    private static bool ProfileChanged(
-        ClientAdditionalProfile? profile,
-        ClientAdditionalProfileInput input)
-    {
-        if (profile is null)
-        {
-            return true;
-        }
-
-        return profile.ProgramType != input.ProgramType
-            || !Equal(profile.ReferralDetails, input.ReferralDetails)
-            || !Equal(profile.HomeCareRating, input.HomeCareRating)
-            || !Equal(profile.MedicalEquipment, input.MedicalEquipment)
-            || !Equal(profile.PcaComplexity, input.PcaComplexity)
-            || !Equal(profile.Demographics, input.Demographics)
-            || profile.Smokes != input.Smokes
-            || profile.IsVeteran != input.IsVeteran
-            || profile.HasPets != input.HasPets
-            || !Equal(profile.LivingArrangement, input.LivingArrangement)
-            || !Equal(profile.PreferredClinic, input.PreferredClinic)
-            || !Equal(profile.PreferredHospital, input.PreferredHospital)
-            || !Equal(profile.PreferredAmbulance, input.PreferredAmbulance)
-            || !Equal(profile.CaregiverPreference, input.CaregiverPreference)
-            || !Equal(profile.NutritionalRequirements, input.NutritionalRequirements)
-            || !Equal(profile.Diet, input.Diet)
-            || !Equal(profile.MealSchedule, input.MealSchedule)
-            || !Equal(profile.Notes, input.Notes)
-            || !Equal(profile.AdditionalInformation, input.AdditionalInformation);
-    }
-
-    private static ServiceChangeAnalysis AnalyzeServiceChanges(
-        IReadOnlyList<ClientService> activeServices,
-        IReadOnlyList<ClientServiceInput> requestedServices)
-    {
-        var currentByCode = activeServices.ToDictionary(
-            service => service.Code,
-            StringComparer.OrdinalIgnoreCase);
-        var requestedByCode = requestedServices.ToDictionary(
-            service => service.Code.Trim(),
-            StringComparer.OrdinalIgnoreCase);
-
-        var toEnd = activeServices
-            .Where(service => !requestedByCode.ContainsKey(service.Code))
-            .ToArray();
-        var toAdd = requestedServices
-            .Where(service => !currentByCode.ContainsKey(service.Code.Trim()))
-            .ToArray();
-        var toRename = activeServices
-            .Where(service => requestedByCode.TryGetValue(service.Code, out var requested)
-                && !Equal(service.Name, requested.Name))
-            .ToArray();
-
-        return new(
-            toEnd,
-            toAdd,
-            toRename,
-            toEnd.Length > 0 || toAdd.Length > 0,
-            toEnd.Length > 0 || toAdd.Length > 0 || toRename.Length > 0);
-    }
-
-    private void ApplyServiceChanges(
-        Guid clientId,
-        IReadOnlyList<ClientService> activeServices,
-        IReadOnlyList<ClientServiceInput> requestedServices,
-        ServiceChangeAnalysis analysis,
-        DateOnly? effectiveDate,
-        DateTimeOffset now,
-        Client client)
-    {
-        var requestedByCode = requestedServices.ToDictionary(
-            service => service.Code.Trim(),
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var service in analysis.ServicesToRename)
-        {
-            service.Rename(requestedByCode[service.Code].Name);
-        }
-
-        if (analysis.ActiveSetChanged)
-        {
-            var changeDate = effectiveDate
-                ?? throw new InvalidOperationException("A service change date is required for an active service set change.");
-
-            foreach (var service in analysis.ServicesToEnd)
-            {
-                service.End(changeDate);
-            }
-
-            foreach (var service in analysis.ServicesToAdd)
-            {
-                context.ClientServices.Add(new ClientService(
-                    Guid.CreateVersion7(),
-                    clientId,
-                    service.Code,
-                    service.Name,
-                    changeDate));
-            }
-        }
-
-        client.MarkUpdated(now);
-    }
-
-    private static bool LanguagesChanged(
-        List<ClientLanguagePreference> current,
-        IReadOnlyList<ClientLanguageInput> requested)
-    {
-        if (current.Count != requested.Count)
-        {
-            return true;
-        }
-
-        var requestedByCode = requested.ToDictionary(
-            language => language.LanguageCode.Trim(),
-            StringComparer.OrdinalIgnoreCase);
-        foreach (var language in current)
-        {
-            if (!requestedByCode.TryGetValue(language.LanguageCode, out var desired)
-                || !Equal(language.LanguageName, desired.LanguageName)
-                || language.IsPrimary != desired.IsPrimary)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool Equal(
-        string? current,
-        string? requested,
-        StringComparison comparison = StringComparison.Ordinal) =>
-        string.Equals(
-            Normalize(current),
-            Normalize(requested),
-            comparison);
 
     private static string Normalize(string? value) => (value ?? string.Empty).Trim();
 
@@ -684,48 +818,6 @@ internal sealed class EfClientAdministration(
         return value.Trim();
     }
 
-    private static bool IsServiceConstraint(DbUpdateException exception) =>
-        IsConstraint(exception, "UX_ClientServices_Client_Code_StartDate")
-        || IsConstraint(exception, "UX_ClientServices_Client_Code_Active");
-
-    private async Task<CompanyLocation?> ResolveLocationAsync(
-        Guid companyId,
-        Guid? locationId,
-        string? locationName,
-        CancellationToken cancellationToken)
-    {
-        var query = context.CompanyLocations.AsNoTracking()
-            .Where(location => location.CompanyId == companyId && location.IsActive);
-
-        if (locationId.HasValue)
-        {
-            return await query.SingleOrDefaultAsync(location => location.Id == locationId.Value, cancellationToken);
-        }
-
-        if (!string.IsNullOrWhiteSpace(locationName))
-        {
-            var normalizedName = locationName.Trim();
-            var namedLocation = await query.SingleOrDefaultAsync(
-                location => location.Name == normalizedName,
-                cancellationToken);
-            if (namedLocation is not null) return namedLocation;
-        }
-
-        return await query.SingleOrDefaultAsync(location => location.IsMain, cancellationToken);
-    }
-
-    private static bool IsConstraint(DbUpdateException exception, string constraintName) =>
-        exception.GetBaseException().Message.Contains(
-            constraintName,
-            StringComparison.OrdinalIgnoreCase);
-
     private static ClientAdministrationResult Failed(ClientAdministrationStatus status) =>
         new(status, null, []);
-
-    private sealed record ServiceChangeAnalysis(
-        IReadOnlyList<ClientService> ServicesToEnd,
-        IReadOnlyList<ClientServiceInput> ServicesToAdd,
-        IReadOnlyList<ClientService> ServicesToRename,
-        bool ActiveSetChanged,
-        bool HasChanges);
 }

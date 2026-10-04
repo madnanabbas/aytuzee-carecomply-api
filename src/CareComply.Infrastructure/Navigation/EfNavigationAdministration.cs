@@ -1,68 +1,17 @@
 using CareComply.Application.Abstractions.Navigation;
-using CareComply.Domain.Navigation;
 using CareComply.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace CareComply.Infrastructure.Navigation;
 
-internal sealed class EfNavigationAdministration(CareComplyDbContext context)
-    : INavigationAdministration
+internal sealed class EfNavigationAdministration(
+    CareComplyDbContext context,
+    NavigationManagementReader reader,
+    NavigationHierarchyValidator validator,
+    NavigationMutationWriter writer) : INavigationAdministration
 {
-    public async Task<IReadOnlyList<NavigationAdministrationModule>> ListAsync(
-        CancellationToken cancellationToken)
-    {
-        var modules = await context.Set<NavigationModule>()
-            .AsNoTracking()
-            .OrderBy(module => module.SortOrder)
-            .ThenBy(module => module.Key)
-            .Select(module => new ModuleRow(
-                module.Id,
-                module.Key,
-                module.Name,
-                module.SortOrder,
-                module.IsActive))
-            .ToArrayAsync(cancellationToken);
-
-        if (modules.Length == 0)
-        {
-            return [];
-        }
-
-        var moduleIds = modules.Select(module => module.Id).ToArray();
-        var features = await context.Set<NavigationFeature>()
-            .AsNoTracking()
-            .Where(feature => moduleIds.Contains(feature.ModuleId))
-            .OrderBy(feature => feature.ModuleId)
-            .ThenBy(feature => feature.SortOrder)
-            .ThenBy(feature => feature.Key)
-            .Select(feature => new NavigationAdministrationFeature(
-                feature.Id,
-                feature.ModuleId,
-                feature.ParentFeatureId,
-                feature.Key,
-                feature.Name,
-                feature.Route,
-                feature.IconKey,
-                feature.SortOrder,
-                feature.IsActive))
-            .ToArrayAsync(cancellationToken);
-
-        var featuresByModule = features
-            .GroupBy(feature => feature.ModuleId)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<NavigationAdministrationFeature>)group.ToArray());
-
-        return modules
-            .Select(module => new NavigationAdministrationModule(
-                module.Id,
-                module.Key,
-                module.Name,
-                module.SortOrder,
-                module.IsActive,
-                featuresByModule.GetValueOrDefault(module.Id, [])))
-            .ToArray();
-    }
+    public Task<IReadOnlyList<NavigationAdministrationModule>> ListAsync(
+        CancellationToken cancellationToken) =>
+        reader.ListAsync(cancellationToken);
 
     public async Task<NavigationAdministrationMutation> CreateModuleAsync(
         string key,
@@ -73,22 +22,21 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
     {
         EnsureAuditedTransaction();
 
-        if (await ModuleKeyExistsAsync(key, excludedModuleId: null, cancellationToken))
+        if (await validator.ModuleKeyExistsAsync(
+                key,
+                excludedModuleId: null,
+                cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.DuplicateKey);
+            return Failed(NavigationAdministrationMutationStatus.DuplicateKey);
         }
 
-        var id = await AllocateModuleIdAsync(cancellationToken);
-        var affectedRows = await context.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO [dbo].[NavigationModules] ([Id], [Key], [Name], [SortOrder], [IsActive])
-            VALUES ({id}, {key}, {name}, {sortOrder}, {isActive})
-            """,
+        var result = await writer.CreateModuleAsync(
+            key,
+            name,
+            sortOrder,
+            isActive,
             cancellationToken);
-
-        return affectedRows == 1
-            ? new(NavigationAdministrationMutationStatus.Succeeded, id)
-            : new(NavigationAdministrationMutationStatus.Unavailable);
+        return FromWrite(result);
     }
 
     public async Task<NavigationAdministrationMutation> UpdateModuleAsync(
@@ -101,31 +49,24 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
     {
         EnsureAuditedTransaction();
 
-        if (!await context.Set<NavigationModule>()
-                .AsNoTracking()
-                .AnyAsync(module => module.Id == moduleId, cancellationToken))
+        if (!await validator.ModuleExistsAsync(moduleId, cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.NotFound);
+            return Failed(NavigationAdministrationMutationStatus.NotFound);
         }
 
-        if (await ModuleKeyExistsAsync(key, moduleId, cancellationToken))
+        if (await validator.ModuleKeyExistsAsync(key, moduleId, cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.DuplicateKey);
+            return Failed(NavigationAdministrationMutationStatus.DuplicateKey);
         }
 
-        var affectedRows = await context.Set<NavigationModule>()
-            .Where(module => module.Id == moduleId)
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(module => module.Key, key)
-                    .SetProperty(module => module.Name, name)
-                    .SetProperty(module => module.SortOrder, sortOrder)
-                    .SetProperty(module => module.IsActive, isActive),
-                cancellationToken);
-
-        return affectedRows == 1
-            ? new(NavigationAdministrationMutationStatus.Succeeded, moduleId)
-            : new(NavigationAdministrationMutationStatus.Unavailable);
+        var affectedRows = await writer.UpdateModuleAsync(
+            moduleId,
+            key,
+            name,
+            sortOrder,
+            isActive,
+            cancellationToken);
+        return FromAffectedRows(affectedRows, moduleId);
     }
 
     public async Task<NavigationAdministrationMutation> DeleteModuleAsync(
@@ -133,22 +74,19 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
         CancellationToken cancellationToken)
     {
         EnsureAuditedTransaction();
-        if (!await ModuleExistsAsync(moduleId, cancellationToken))
+
+        if (!await validator.ModuleExistsAsync(moduleId, cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.NotFound);
-        }
-        if (await context.Set<NavigationFeature>().AsNoTracking()
-                .AnyAsync(feature => feature.ModuleId == moduleId, cancellationToken))
-        {
-            return new(NavigationAdministrationMutationStatus.InUse);
+            return Failed(NavigationAdministrationMutationStatus.NotFound);
         }
 
-        var affectedRows = await context.Set<NavigationModule>()
-            .Where(module => module.Id == moduleId)
-            .ExecuteDeleteAsync(cancellationToken);
-        return affectedRows == 1
-            ? new(NavigationAdministrationMutationStatus.Succeeded, moduleId)
-            : new(NavigationAdministrationMutationStatus.Unavailable);
+        if (await validator.ModuleHasFeaturesAsync(moduleId, cancellationToken))
+        {
+            return Failed(NavigationAdministrationMutationStatus.InUse);
+        }
+
+        var affectedRows = await writer.DeleteModuleAsync(moduleId, cancellationToken);
+        return FromAffectedRows(affectedRows, moduleId);
     }
 
     public async Task<NavigationAdministrationMutation> CreateFeatureAsync(
@@ -164,43 +102,47 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
     {
         EnsureAuditedTransaction();
 
-        if (!await ModuleExistsAsync(moduleId, cancellationToken))
+        if (!await validator.ModuleExistsAsync(moduleId, cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.NotFound);
+            return Failed(NavigationAdministrationMutationStatus.NotFound);
         }
 
-        if (!await IsValidParentAsync(
+        if (!await validator.IsValidParentAsync(
                 moduleId,
                 parentFeatureId,
                 featureId: null,
                 cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.InvalidParent);
+            return Failed(NavigationAdministrationMutationStatus.InvalidParent);
         }
 
-        if (await FeatureKeyExistsAsync(key, excludedFeatureId: null, cancellationToken))
+        if (await validator.FeatureKeyExistsAsync(
+                key,
+                excludedFeatureId: null,
+                cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.DuplicateKey);
+            return Failed(NavigationAdministrationMutationStatus.DuplicateKey);
         }
 
-        if (await FeatureRouteExistsAsync(route, excludedFeatureId: null, cancellationToken))
+        if (await validator.FeatureRouteExistsAsync(
+                route,
+                excludedFeatureId: null,
+                cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.DuplicateRoute);
+            return Failed(NavigationAdministrationMutationStatus.DuplicateRoute);
         }
 
-        var id = await AllocateFeatureIdAsync(cancellationToken);
-        var affectedRows = await context.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            INSERT INTO [dbo].[NavigationFeatures]
-                ([Id], [ModuleId], [ParentFeatureId], [Key], [Name], [Route], [IconKey], [SortOrder], [IsActive])
-            VALUES
-                ({id}, {moduleId}, {parentFeatureId}, {key}, {name}, {route}, {iconKey}, {sortOrder}, {isActive})
-            """,
+        var result = await writer.CreateFeatureAsync(
+            moduleId,
+            parentFeatureId,
+            key,
+            name,
+            route,
+            iconKey,
+            sortOrder,
+            isActive,
             cancellationToken);
-
-        return affectedRows == 1
-            ? new(NavigationAdministrationMutationStatus.Succeeded, id)
-            : new(NavigationAdministrationMutationStatus.Unavailable);
+        return FromWrite(result);
     }
 
     public async Task<NavigationAdministrationMutation> UpdateFeatureAsync(
@@ -217,72 +159,59 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
     {
         EnsureAuditedTransaction();
 
-        var existingFeature = await context.Set<NavigationFeature>()
-            .AsNoTracking()
-            .Where(feature => feature.Id == featureId)
-            .Select(feature => new
-            {
-                feature.ModuleId,
-                feature.ParentFeatureId,
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-
+        var existingFeature = await validator.GetFeatureRelationshipAsync(
+            featureId,
+            cancellationToken);
         if (existingFeature is null)
         {
-            return new(NavigationAdministrationMutationStatus.NotFound);
+            return Failed(NavigationAdministrationMutationStatus.NotFound);
         }
 
-        if (!await ModuleExistsAsync(moduleId, cancellationToken))
+        if (!await validator.ModuleExistsAsync(moduleId, cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.NotFound);
+            return Failed(NavigationAdministrationMutationStatus.NotFound);
         }
 
-        var hasChildren = await context.Set<NavigationFeature>()
-            .AsNoTracking()
-            .AnyAsync(feature => feature.ParentFeatureId == featureId, cancellationToken);
-
+        var hasChildren = await validator.FeatureHasChildrenAsync(
+            featureId,
+            cancellationToken);
         if (hasChildren
             && (parentFeatureId is not null || existingFeature.ModuleId != moduleId))
         {
-            return new(NavigationAdministrationMutationStatus.InvalidParent);
+            return Failed(NavigationAdministrationMutationStatus.InvalidParent);
         }
 
-        if (!await IsValidParentAsync(
+        if (!await validator.IsValidParentAsync(
                 moduleId,
                 parentFeatureId,
                 featureId,
                 cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.InvalidParent);
+            return Failed(NavigationAdministrationMutationStatus.InvalidParent);
         }
 
-        if (await FeatureKeyExistsAsync(key, featureId, cancellationToken))
+        if (await validator.FeatureKeyExistsAsync(key, featureId, cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.DuplicateKey);
+            return Failed(NavigationAdministrationMutationStatus.DuplicateKey);
         }
 
-        if (await FeatureRouteExistsAsync(route, featureId, cancellationToken))
+        if (await validator.FeatureRouteExistsAsync(route, featureId, cancellationToken))
         {
-            return new(NavigationAdministrationMutationStatus.DuplicateRoute);
+            return Failed(NavigationAdministrationMutationStatus.DuplicateRoute);
         }
 
-        var affectedRows = await context.Set<NavigationFeature>()
-            .Where(feature => feature.Id == featureId)
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(feature => feature.ModuleId, moduleId)
-                    .SetProperty(feature => feature.ParentFeatureId, parentFeatureId)
-                    .SetProperty(feature => feature.Key, key)
-                    .SetProperty(feature => feature.Name, name)
-                    .SetProperty(feature => feature.Route, route)
-                    .SetProperty(feature => feature.IconKey, iconKey)
-                    .SetProperty(feature => feature.SortOrder, sortOrder)
-                    .SetProperty(feature => feature.IsActive, isActive),
-                cancellationToken);
-
-        return affectedRows == 1
-            ? new(NavigationAdministrationMutationStatus.Succeeded, featureId)
-            : new(NavigationAdministrationMutationStatus.Unavailable);
+        var affectedRows = await writer.UpdateFeatureAsync(
+            featureId,
+            moduleId,
+            parentFeatureId,
+            key,
+            name,
+            route,
+            iconKey,
+            sortOrder,
+            isActive,
+            cancellationToken);
+        return FromAffectedRows(affectedRows, featureId);
     }
 
     public async Task<NavigationAdministrationMutation> DeleteFeatureAsync(
@@ -290,119 +219,23 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
         CancellationToken cancellationToken)
     {
         EnsureAuditedTransaction();
-        if (!await context.Set<NavigationFeature>().AsNoTracking()
-                .AnyAsync(feature => feature.Id == featureId, cancellationToken))
+
+        if (await validator.GetFeatureRelationshipAsync(featureId, cancellationToken) is null)
         {
-            return new(NavigationAdministrationMutationStatus.NotFound);
+            return Failed(NavigationAdministrationMutationStatus.NotFound);
         }
 
-        var hasChildren = await context.Set<NavigationFeature>().AsNoTracking()
-            .AnyAsync(feature => feature.ParentFeatureId == featureId, cancellationToken);
-        var hasPermissions = await context.Set<CareComply.Domain.AccessManagement.RolePermissionFeatureLink>()
-            .AsNoTracking()
-            .AnyAsync(link => link.FeatureId == featureId, cancellationToken);
+        var hasChildren = await validator.FeatureHasChildrenAsync(featureId, cancellationToken);
+        var hasPermissions = await validator.FeatureHasPermissionLinksAsync(
+            featureId,
+            cancellationToken);
         if (hasChildren || hasPermissions)
         {
-            return new(NavigationAdministrationMutationStatus.InUse);
+            return Failed(NavigationAdministrationMutationStatus.InUse);
         }
 
-        var affectedRows = await context.Set<NavigationFeature>()
-            .Where(feature => feature.Id == featureId)
-            .ExecuteDeleteAsync(cancellationToken);
-        return affectedRows == 1
-            ? new(NavigationAdministrationMutationStatus.Succeeded, featureId)
-            : new(NavigationAdministrationMutationStatus.Unavailable);
-    }
-
-    private Task<bool> ModuleExistsAsync(
-        int moduleId,
-        CancellationToken cancellationToken) => context.Set<NavigationModule>()
-        .AsNoTracking()
-        .AnyAsync(module => module.Id == moduleId, cancellationToken);
-
-    private Task<bool> ModuleKeyExistsAsync(
-        string key,
-        int? excludedModuleId,
-        CancellationToken cancellationToken) => context.Set<NavigationModule>()
-        .AsNoTracking()
-        .AnyAsync(
-            module => module.Key == key
-                && (!excludedModuleId.HasValue || module.Id != excludedModuleId.Value),
-            cancellationToken);
-
-    private Task<bool> FeatureKeyExistsAsync(
-        string key,
-        int? excludedFeatureId,
-        CancellationToken cancellationToken) => context.Set<NavigationFeature>()
-        .AsNoTracking()
-        .AnyAsync(
-            feature => feature.Key == key
-                && (!excludedFeatureId.HasValue || feature.Id != excludedFeatureId.Value),
-            cancellationToken);
-
-    private Task<bool> FeatureRouteExistsAsync(
-        string route,
-        int? excludedFeatureId,
-        CancellationToken cancellationToken) => context.Set<NavigationFeature>()
-        .AsNoTracking()
-        .AnyAsync(
-            feature => feature.Route == route
-                && (!excludedFeatureId.HasValue || feature.Id != excludedFeatureId.Value),
-            cancellationToken);
-
-    private async Task<bool> IsValidParentAsync(
-        int moduleId,
-        int? parentFeatureId,
-        int? featureId,
-        CancellationToken cancellationToken)
-    {
-        if (parentFeatureId is null)
-        {
-            return true;
-        }
-
-        if (featureId == parentFeatureId)
-        {
-            return false;
-        }
-
-        var parent = await context.Set<NavigationFeature>()
-            .AsNoTracking()
-            .Where(feature => feature.Id == parentFeatureId.Value)
-            .Select(feature => new
-            {
-                feature.ModuleId,
-                feature.ParentFeatureId,
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return parent is not null
-            && parent.ModuleId == moduleId
-            && parent.ParentFeatureId is null;
-    }
-
-    private async Task<int> AllocateModuleIdAsync(CancellationToken cancellationToken)
-    {
-        var values = await context.Database
-            .SqlQuery<int>($"""
-                SELECT COALESCE(MAX([Id]), 0) + 1 AS [Value]
-                FROM [dbo].[NavigationModules] WITH (UPDLOCK, HOLDLOCK)
-                """)
-            .ToArrayAsync(cancellationToken);
-
-        return values.Single();
-    }
-
-    private async Task<int> AllocateFeatureIdAsync(CancellationToken cancellationToken)
-    {
-        var values = await context.Database
-            .SqlQuery<int>($"""
-                SELECT COALESCE(MAX([Id]), 0) + 1 AS [Value]
-                FROM [dbo].[NavigationFeatures] WITH (UPDLOCK, HOLDLOCK)
-                """)
-            .ToArrayAsync(cancellationToken);
-
-        return values.Single();
+        var affectedRows = await writer.DeleteFeatureAsync(featureId, cancellationToken);
+        return FromAffectedRows(affectedRows, featureId);
     }
 
     private void EnsureAuditedTransaction()
@@ -414,10 +247,17 @@ internal sealed class EfNavigationAdministration(CareComplyDbContext context)
         }
     }
 
-    private sealed record ModuleRow(
-        int Id,
-        string Key,
-        string Name,
-        int SortOrder,
-        bool IsActive);
+    private static NavigationAdministrationMutation FromWrite(NavigationWriteResult result) =>
+        FromAffectedRows(result.AffectedRows, result.Id);
+
+    private static NavigationAdministrationMutation FromAffectedRows(
+        int affectedRows,
+        int id) =>
+        affectedRows == 1
+            ? new(NavigationAdministrationMutationStatus.Succeeded, id)
+            : Failed(NavigationAdministrationMutationStatus.Unavailable);
+
+    private static NavigationAdministrationMutation Failed(
+        NavigationAdministrationMutationStatus status) =>
+        new(status);
 }

@@ -2,10 +2,22 @@ namespace CareComply.Application.Abstractions.Employees;
 
 public interface IEmployeeDirectory
 {
-    Task<IReadOnlyList<EmployeeDirectoryEntry>?> ListAsync(
-        string? search,
+    Task<EmployeeDirectoryPage?> ListAsync(
+        EmployeeDirectoryRequest request,
+        CancellationToken cancellationToken);
+
+    Task<EmployeeDetailsResponse?> GetAsync(
+        Guid employeeId,
         CancellationToken cancellationToken);
 }
+
+public sealed record EmployeeDirectoryRequest(string? Search, int PageNumber, int PageSize);
+
+public sealed record EmployeeDirectoryPage(
+    IReadOnlyList<EmployeeDirectoryEntry> Items,
+    int PageNumber,
+    int PageSize,
+    int TotalCount);
 
 public sealed record EmployeeDirectoryEntry(
     Guid Id,

@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.Users.Commands.Create
 public sealed record CreateUserResult(
     UserProvisioningResult? Provisioning,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<CreateUserResult>
 {
     public string ReasonCode => AuthorizationFailure is not null
         ? "authorization-denied"

@@ -21,6 +21,8 @@ public sealed class CareComplyDbContext
     public DbSet<CompanyLocation> CompanyLocations => Set<CompanyLocation>();
     public DbSet<ApplicationUserLocation> UserLocations => Set<ApplicationUserLocation>();
     public DbSet<Client> Clients => Set<Client>();
+    public DbSet<ClientGuestInvitation> ClientGuestInvitations => Set<ClientGuestInvitation>();
+    public DbSet<ClientGuestSession> ClientGuestSessions => Set<ClientGuestSession>();
     public DbSet<ClientAdditionalProfile> ClientAdditionalProfiles => Set<ClientAdditionalProfile>();
     public DbSet<ClientService> ClientServices => Set<ClientService>();
     public DbSet<ClientLanguagePreference> ClientLanguagePreferences => Set<ClientLanguagePreference>();

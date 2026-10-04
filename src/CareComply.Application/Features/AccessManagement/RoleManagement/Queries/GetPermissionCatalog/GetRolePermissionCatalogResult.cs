@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.RoleManagement.Querie
 public sealed record GetRolePermissionCatalogResult(
     IReadOnlyList<PermissionCatalogModule>? Modules,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<GetRolePermissionCatalogResult>
 {
     public static GetRolePermissionCatalogResult Succeeded(IReadOnlyList<PermissionCatalogModule> modules) => new(modules, null);
     public static GetRolePermissionCatalogResult Denied(AuthorizationFailure failure) => new(null, failure);

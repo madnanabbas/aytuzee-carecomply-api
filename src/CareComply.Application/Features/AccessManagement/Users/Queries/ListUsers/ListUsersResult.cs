@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.AccessManagement.Users.Queries.ListUse
 public sealed record ListUsersResult(
     UserDirectoryPage? Page,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<ListUsersResult>
 {
     public static ListUsersResult Succeeded(UserDirectoryPage page) => new(page, null);
 

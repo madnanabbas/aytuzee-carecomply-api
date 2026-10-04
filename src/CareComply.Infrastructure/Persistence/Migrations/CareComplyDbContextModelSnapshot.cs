@@ -98,6 +98,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset(0)");
 
+                    b.Property<int>("CreationProgressStep")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<DateOnly>("DateOfBirth")
                         .HasColumnType("date");
 
@@ -224,11 +229,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid?>("SupervisorUserId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<Guid?>("SupervisorUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("datetimeoffset(0)");
@@ -255,6 +260,8 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Clients", "dbo", t =>
                         {
+                            t.HasCheckConstraint("CK_Clients_CreationProgressStep", "[CreationProgressStep] BETWEEN 0 AND 10");
+
                             t.HasCheckConstraint("CK_Clients_DischargeSocDates", "[DischargeDate] IS NULL OR [DischargeDate] >= [SocDate]");
 
                             t.HasCheckConstraint("CK_Clients_DischargeState", "([Status] <> 4 AND [DischargeDate] IS NULL) OR ([Status] = 4 AND [DischargeDate] IS NOT NULL)");
@@ -382,7 +389,10 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<Guid>("CreatedByUserId")
+                    b.Property<Guid?>("CreatedByGuestInvitationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly?>("EndDate")
@@ -438,6 +448,8 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedByGuestInvitationId");
+
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("UserId");
@@ -452,7 +464,10 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[Status] = 'Active'");
 
-                    b.ToTable("ClientCaregivers", "dbo");
+                    b.ToTable("ClientCaregivers", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientCaregivers_Creator", "([CreatedByUserId] IS NULL AND [CreatedByGuestInvitationId] IS NOT NULL) OR ([CreatedByUserId] IS NOT NULL AND [CreatedByGuestInvitationId] IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CareComply.Domain.Clients.ClientContact", b =>
@@ -586,6 +601,147 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientGuestInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ClientCreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<string>("ClientName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(320)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<string>("MobileNumber")
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTimeOffset?>("OpenedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateTimeOffset?>("RedeemedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset?>("SentAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("binary(32)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientGuestInvitations");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("CreatedClientId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientGuestInvitations_CreatedClientId")
+                        .HasFilter("[CreatedClientId] IS NOT NULL");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientGuestInvitations_TokenHash");
+
+                    b.HasIndex("CompanyId", "ExpiresAtUtc")
+                        .HasDatabaseName("IX_ClientGuestInvitations_CompanyId_ExpiresAtUtc");
+
+                    b.ToTable("ClientGuestInvitations", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientGuestInvitations_ExpiresAfterCreation", "[ExpiresAtUtc] > [CreatedAtUtc]");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientGuestSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientGuestInvitationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<byte[]>("CsrfTokenHash")
+                        .IsRequired()
+                        .HasColumnType("binary(32)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateTimeOffset>("LastActivityAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<byte[]>("SessionTokenHash")
+                        .IsRequired()
+                        .HasColumnType("binary(32)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientGuestSessions");
+
+                    b.HasIndex("ClientGuestInvitationId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientGuestSessions_InvitationId");
+
+                    b.HasIndex("SessionTokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientGuestSessions_SessionTokenHash");
+
+                    b.ToTable("ClientGuestSessions", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientGuestSessions_ExpiresAfterCreation", "[ExpiresAtUtc] > [CreatedAtUtc]");
+                        });
+                });
+
             modelBuilder.Entity("CareComply.Domain.Clients.ClientHospitalization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -600,7 +756,10 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<Guid>("CreatedByUserId")
+                    b.Property<Guid?>("CreatedByGuestInvitationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Diagnosis")
@@ -638,6 +797,8 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("PK_ClientHospitalizations");
 
+                    b.HasIndex("CreatedByGuestInvitationId");
+
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("ClientId", "AdmittedAtUtc")
@@ -646,6 +807,8 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ClientHospitalizations", "dbo", t =>
                         {
+                            t.HasCheckConstraint("CK_ClientHospitalizations_Creator", "([CreatedByUserId] IS NULL AND [CreatedByGuestInvitationId] IS NOT NULL) OR ([CreatedByUserId] IS NOT NULL AND [CreatedByGuestInvitationId] IS NULL)");
+
                             t.HasCheckConstraint("CK_ClientHospitalizations_Dates", "[DischargedAtUtc] IS NULL OR [DischargedAtUtc] >= [AdmittedAtUtc]");
                         });
                 });
@@ -1937,6 +2100,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             Id = 96,
                             Name = "ClientPhysician.Edit"
+                        },
+                        new
+                        {
+                            Id = 97,
+                            Name = "Client.GuestInvite"
                         });
                 });
 
@@ -2127,6 +2295,16 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("EmployeeBackgroundInformationJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmployeeContactsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("EmployeeNotes")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -2136,6 +2314,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("EmployeeTrainingInformationJson")
+                        .IsRequired()
+                        .HasMaxLength(32000)
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Ethnicity")
                         .IsRequired()
@@ -2202,6 +2385,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly?>("InactiveDate")
                         .HasColumnType("date");
+
+                    b.Property<bool>("InsuranceAffiliationRequired")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -2315,34 +2501,16 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
 
+                    b.Property<string>("PayerAffiliationsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateOnly?>("PayerEffectiveFrom")
                         .HasColumnType("date");
 
                     b.Property<DateOnly?>("PayerEffectiveTo")
                         .HasColumnType("date");
-
-                    b.Property<bool>("InsuranceAffiliationRequired")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("EmployeeBackgroundInformationJson")
-                        .IsRequired()
-                        .HasMaxLength(16000)
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EmployeeTrainingInformationJson")
-                        .IsRequired()
-                        .HasMaxLength(32000)
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EmployeeContactsJson")
-                        .IsRequired()
-                        .HasMaxLength(16000)
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PayerAffiliationsJson")
-                        .IsRequired()
-                        .HasMaxLength(16000)
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PayerGroupNumber")
                         .IsRequired()
@@ -2713,11 +2881,15 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("CareComply.Domain.Clients.ClientGuestInvitation", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByGuestInvitationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
@@ -2736,6 +2908,39 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasConstraintName("FK_ClientContacts_Clients_ClientId");
                 });
 
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientGuestInvitation", b =>
+                {
+                    b.HasOne("CareComply.Domain.Companies.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientGuestInvitations_Companies_CompanyId");
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientGuestInvitations_Users_CreatedByUserId");
+
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_ClientGuestInvitations_Clients_CreatedClientId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientGuestSession", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.ClientGuestInvitation", null)
+                        .WithOne()
+                        .HasForeignKey("CareComply.Domain.Clients.ClientGuestSession", "ClientGuestInvitationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientGuestSessions_ClientGuestInvitations_InvitationId");
+                });
+
             modelBuilder.Entity("CareComply.Domain.Clients.ClientHospitalization", b =>
                 {
                     b.HasOne("CareComply.Domain.Clients.Client", null)
@@ -2745,11 +2950,15 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("FK_ClientHospitalizations_Clients_ClientId");
 
+                    b.HasOne("CareComply.Domain.Clients.ClientGuestInvitation", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByGuestInvitationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("CareComply.Domain.Clients.ClientLanguagePreference", b =>

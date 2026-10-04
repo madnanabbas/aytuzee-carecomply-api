@@ -94,40 +94,11 @@ public sealed class AuthorizationBehaviorTests
     }
 
     [Fact]
-    public async Task MissingFailureFactoryIsDetected()
-    {
-        var behavior = new AuthorizationBehavior<ProtectedCommand, ProtectedResult>(
-            new StubCurrentActor(false, null),
-            new StubPermissionResolver(Array.Empty<string>()),
-            Array.Empty<IAuthorizationFailureResultFactory<ProtectedResult>>());
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.Handle(
-            new ProtectedCommand("valid"),
-            SuccessfulNext,
-            CancellationToken.None).AsTask());
-    }
-
-    [Fact]
-    public async Task AmbiguousFailureFactoriesAreDetected()
-    {
-        var behavior = new AuthorizationBehavior<ProtectedCommand, ProtectedResult>(
-            new StubCurrentActor(false, null),
-            new StubPermissionResolver(Array.Empty<string>()),
-            [new ProtectedResultFactory(), new ProtectedResultFactory()]);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.Handle(
-            new ProtectedCommand("valid"),
-            SuccessfulNext,
-            CancellationToken.None).AsTask());
-    }
-
-    [Fact]
     public async Task UnknownPermissionFailsClosed()
     {
         var behavior = new AuthorizationBehavior<UnknownPermissionCommand, ProtectedResult>(
             new StubCurrentActor(true, Guid.CreateVersion7()),
-            new StubPermissionResolver([Permissions.Client.Create]),
-            [new ProtectedResultFactory()]);
+            new StubPermissionResolver([Permissions.Client.Create]));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.Handle(
             new UnknownPermissionCommand(),
@@ -204,8 +175,7 @@ public sealed class AuthorizationBehaviorTests
         ICurrentActor currentActor,
         IUserPermissionResolver resolver) => new(
             currentActor,
-            resolver,
-            [new ProtectedResultFactory()]);
+            resolver);
 
     private static ValueTask<ProtectedResult> SuccessfulNext(
         ProtectedCommand message,
@@ -223,12 +193,10 @@ public sealed class AuthorizationBehaviorTests
         public string RequiredPermission => "Unknown.Permission";
     }
 
-    private sealed record ProtectedResult(bool Handled, AuthorizationFailure? Failure);
-
-    private sealed class ProtectedResultFactory
-        : IAuthorizationFailureResultFactory<ProtectedResult>
+    private sealed record ProtectedResult(bool Handled, AuthorizationFailure? Failure)
+        : IAuthorizationFailureResponse<ProtectedResult>
     {
-        public ProtectedResult Create(AuthorizationFailure failure) => new(false, failure);
+        public static ProtectedResult Denied(AuthorizationFailure failure) => new(false, failure);
     }
 
     private sealed class ProtectedCommandValidator : AbstractValidator<ProtectedCommand>

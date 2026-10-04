@@ -6,6 +6,7 @@ namespace CareComply.Application.Features.Clients.Commands.UpdateClient;
 public sealed record UpdateClientResult(
     ClientAdministrationResult? Administration,
     AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<UpdateClientResult>
 {
     public string ReasonCode => AuthorizationFailure?.ToString()
         ?? Administration?.Status.ToString()

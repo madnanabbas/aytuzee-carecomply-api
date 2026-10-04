@@ -15,6 +15,27 @@ public sealed record ClientIdentityRequest(
 
 public sealed record ClientSsnResponse(string Ssn);
 
+public sealed record CreateClientGuestInvitationRequest(
+    string ClientName,
+    string Email,
+    string? MobileNumber,
+    Guid? CompanyId = null);
+
+public sealed record CreateClientGuestInvitationResponse(
+    Guid InvitationId,
+    string GuestLink,
+    DateTimeOffset ExpiresAtUtc);
+
+public sealed record SendClientGuestInvitationRequest(string Token)
+{
+    public override string ToString() => "SendClientGuestInvitationRequest { Token = [REDACTED] }";
+}
+
+public sealed record SendClientGuestInvitationResponse(
+    Guid InvitationId,
+    DateTimeOffset SentAtUtc,
+    DateTimeOffset ExpiresAtUtc);
+
 public sealed record ClientContactRequest(
     string? InsuranceProvider,
     string? Email,
@@ -86,6 +107,39 @@ public sealed record CreateClientRequest(
     IReadOnlyList<ClientServiceRequest>? Services,
     IReadOnlyList<ClientLanguageRequest>? Languages);
 
+public sealed record CreateClientBasicDetailsRequest(
+    ClientIdentityRequest Identity,
+    ClientCareSetupRequest CareSetup,
+    string? InsuranceProvider,
+    IReadOnlyList<ClientServiceRequest>? Services);
+
+public sealed record UpdateClientBasicDetailsRequest(
+    ClientIdentityRequest Identity,
+    ClientCareSetupRequest CareSetup,
+    string? InsuranceProvider,
+    IReadOnlyList<ClientServiceRequest>? Services,
+    string EditorVersion);
+
+public sealed record UpdateClientAdditionalInformationRequest(
+    ClientAdditionalProfileRequest AdditionalProfile,
+    string EditorVersion);
+
+public sealed record UpdateClientContactInformationRequest(
+    string? Email,
+    string? PrimaryPhone,
+    string? SecondaryPhone,
+    string? AddressLine1,
+    string? AddressLine2,
+    string? City,
+    string? State,
+    string? PostalCode,
+    string? County,
+    string? Country,
+    IReadOnlyList<ClientLanguageRequest>? PreferredLanguages,
+    string EditorVersion);
+
+public sealed record ClientMutationResponse(Guid Id, string EditorVersion);
+
 public sealed record UpdateClientRequest(
     ClientIdentityRequest Identity,
     ClientContactRequest Contact,
@@ -102,6 +156,34 @@ public sealed record ChangeClientStatusRequest(
     DateOnly? DischargeDate,
     string? DischargeReason,
     string EditorVersion);
+
+public sealed record CompleteClientCreationRequest(string EditorVersion);
+
+public sealed record CompleteClientCreationResponse(
+    Guid Id,
+    string Status,
+    string EditorVersion);
+
+public sealed record AdvanceClientCreationProgressRequest(
+    int Step,
+    string EditorVersion);
+
+public sealed record ClientCreationProgressResponse(
+    Guid Id,
+    int CurrentStep,
+    string EditorVersion);
+
+public sealed record ClientCreationStateResponse(
+    Guid Id,
+    string Status,
+    int CurrentStep,
+    string EditorVersion,
+    ClientIdentityResponse Identity,
+    ClientContactResponse Contact,
+    ClientCareSetupResponse CareSetup,
+    ClientAdditionalProfileResponse AdditionalProfile,
+    IReadOnlyList<ClientServiceResponse> Services,
+    IReadOnlyList<ClientLanguageResponse> Languages);
 
 public sealed record ClientListResponse(
     IReadOnlyList<ClientListItemResponse> Items,
