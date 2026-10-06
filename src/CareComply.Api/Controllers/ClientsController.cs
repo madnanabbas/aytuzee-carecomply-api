@@ -635,8 +635,22 @@ public sealed class ClientsController(
         CompleteClientCreationRequest request,
         CancellationToken cancellationToken)
     {
+        var status = request.Status.HasValue
+            ? (ClientStatus)request.Status.Value
+            : ClientStatus.Active;
+        if (!Enum.IsDefined(status))
+            return InvalidEnum(
+                "status",
+                request.Status?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                typeof(ClientStatus));
+
         var result = await sender.Send(
-            new CompleteClientCreationCommand(clientId, request.EditorVersion),
+            new CompleteClientCreationCommand(
+                clientId,
+                status,
+                request.DischargeDate,
+                request.DischargeReason,
+                request.EditorVersion),
             cancellationToken);
         if (result.AuthorizationFailure is { } failure)
         {

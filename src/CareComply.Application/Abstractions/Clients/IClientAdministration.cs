@@ -180,6 +180,9 @@ public sealed record ClientStatusChangeRequest(
 
 public sealed record ClientCreationCompletionRequest(
     Guid ClientId,
+    ClientStatus Status,
+    DateOnly? DischargeDate,
+    string? DischargeReason,
     string EditorVersion);
 
 public sealed record ClientCreationProgressRequest(

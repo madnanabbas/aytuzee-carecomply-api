@@ -157,7 +157,11 @@ public sealed record ChangeClientStatusRequest(
     string? DischargeReason,
     string EditorVersion);
 
-public sealed record CompleteClientCreationRequest(string EditorVersion);
+public sealed record CompleteClientCreationRequest(
+    string EditorVersion,
+    int? Status = null,
+    DateOnly? DischargeDate = null,
+    string? DischargeReason = null);
 
 public sealed record CompleteClientCreationResponse(
     Guid Id,
@@ -254,7 +258,8 @@ public sealed record ClientCareSetupResponse(
     DateOnly? DischargeDate,
     string DischargeReason,
     Guid LocationId,
-    Guid? SupervisorUserId);
+    Guid? SupervisorUserId,
+    string SupervisorName);
 
 public sealed record ClientSafetyResponse(
     string SafetyMeasures,

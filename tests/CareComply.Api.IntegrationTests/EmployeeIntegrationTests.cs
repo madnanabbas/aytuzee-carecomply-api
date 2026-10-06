@@ -399,6 +399,87 @@ public sealed class EmployeeIntegrationTests(SqlServerApiFactory factory)
             errors.GetProperty("LocationIds")[0].GetString());
     }
 
+    [Theory]
+    [InlineData("12345678")]
+    [InlineData("1234567890")]
+    [InlineData("ABC123456")]
+    [InlineData("123-45-6789")]
+    public async Task EmployeeSsnRequiresExactlyNineAsciiDigits(string ssn)
+    {
+        var actor = await CreateActorAsync(Permissions.Employee.Create);
+        using var client = factory.CreateSecureClient();
+        await SignInAsync(client, actor.Email!);
+        var request = EmployeeRequest(UniqueEmail("invalid-ssn"), await MainLocationIdAsync());
+        request["ssn"] = ssn;
+
+        var response = await client.PostAsJsonAsync("/api/employees", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var json = await ReadJsonAsync(response);
+        Assert.Equal(
+            "SSN must contain exactly 9 digits.",
+            json.RootElement.GetProperty("errors").GetProperty("Ssn")[0].GetString());
+    }
+
+    [Fact]
+    public async Task EmployeeAcceptsCanonicalSsnAndFormattedUsPhoneWithoutEvvOrIvr()
+    {
+        var actor = await CreateActorAsync(Permissions.Employee.Create);
+        using var client = factory.CreateSecureClient();
+        await SignInAsync(client, actor.Email!);
+        var request = EmployeeRequest(UniqueEmail("canonical-sensitive"), await MainLocationIdAsync());
+        request["ssn"] = "123456789";
+        request["phone"] = "(612) 555-0102";
+
+        var response = await client.PostAsJsonAsync("/api/employees", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var json = await ReadJsonAsync(response);
+        Assert.True(json.RootElement.GetProperty("hasSsn").GetBoolean());
+        Assert.False(json.RootElement.GetProperty("hasEvvPassword").GetBoolean());
+        Assert.False(json.RootElement.GetProperty("hasIvrPin").GetBoolean());
+        var employeeId = json.RootElement.GetProperty("id").GetGuid();
+        var protectedValues = await ReadProtectedValuesAsync(employeeId);
+        Assert.NotEqual("123456789", protectedValues.Ssn);
+    }
+
+    [Theory]
+    [InlineData("612555010")]
+    [InlineData("+1 (612) 555-0100")]
+    [InlineData("612-CALL-NOW")]
+    public async Task EmployeePhoneUsesSharedUsPhoneValidation(string phone)
+    {
+        var actor = await CreateActorAsync(Permissions.Employee.Create);
+        using var client = factory.CreateSecureClient();
+        await SignInAsync(client, actor.Email!);
+        var request = EmployeeRequest(UniqueEmail("invalid-phone"), await MainLocationIdAsync());
+        request["phone"] = phone;
+
+        var response = await client.PostAsJsonAsync("/api/employees", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var json = await ReadJsonAsync(response);
+        Assert.Equal(
+            "Enter a valid 10-digit US phone number.",
+            json.RootElement.GetProperty("errors").GetProperty("Phone")[0].GetString());
+    }
+
+    [Fact]
+    public async Task OmittedOptionalEmployeePhonesRemainValid()
+    {
+        var actor = await CreateActorAsync(Permissions.Employee.Create);
+        using var client = factory.CreateSecureClient();
+        await SignInAsync(client, actor.Email!);
+        var request = EmployeeRequest(UniqueEmail("blank-phones"), await MainLocationIdAsync());
+        request["secondaryPhone"] = string.Empty;
+        request["emergencyContactPhone"] = string.Empty;
+        request["payerPhone"] = string.Empty;
+
+        var response = await client.PostAsJsonAsync("/api/employees", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
     [Fact]
     public async Task EmployeeViewPermissionIsRequiredForListAndGet()
     {
@@ -525,6 +606,46 @@ public sealed class EmployeeIntegrationTests(SqlServerApiFactory factory)
         AssertSensitiveResponseIsRedacted(updatedJson.RootElement);
         var after = await ReadProtectedValuesAsync(employeeId);
         Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public async Task OmittedEvvAndIvrFieldsPreserveHistoricalValuesDuringEdit()
+    {
+        var actor = await CreateActorAsync(
+            Permissions.Employee.Create,
+            Permissions.Employee.Edit);
+        using var client = factory.CreateSecureClient();
+        await SignInAsync(client, actor.Email!);
+        var request = EmployeeRequest(UniqueEmail("preserve-evv"), await MainLocationIdAsync());
+        request["allowAggregator"] = true;
+        request["overrideRestriction"] = true;
+        request["evvOnly"] = true;
+        request["restrictDateAndTime"] = true;
+        request["evvEmail"] = "historical-evv@example.test";
+        request["evvPassword"] = "Historical EVV password";
+        request["ivrPin"] = "7531";
+        request["evvIvrAuthorization"] = "EVV and IVR";
+        var created = await client.PostAsJsonAsync("/api/employees", request);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        using var createdJson = await ReadJsonAsync(created);
+        var employeeId = createdJson.RootElement.GetProperty("id").GetGuid();
+        request["editorVersion"] = createdJson.RootElement.GetProperty("editorVersion").GetString();
+        var before = await ReadEvvStateAsync(employeeId);
+
+        foreach (var key in new[]
+        {
+            "allowAggregator", "overrideRestriction", "evvOnly", "restrictDateAndTime",
+            "evvEmail", "evvPassword", "ivrPin", "evvIvrAuthorization",
+        })
+        {
+            request.Remove(key);
+        }
+        request["lastName"] = "Unrelated update";
+
+        var updated = await client.PutAsJsonAsync($"/api/employees/{employeeId}", request);
+
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        Assert.Equal(before, await ReadEvvStateAsync(employeeId));
     }
 
     [Fact]
@@ -732,6 +853,37 @@ public sealed class EmployeeIntegrationTests(SqlServerApiFactory factory)
                 user.EvvPasswordProtected,
                 user.IvrPinProtected))
             .SingleAsync();
+    }
+
+    private async Task<(bool AllowAggregator, bool OverrideRestriction, bool EvvOnly,
+        bool RestrictDateAndTime, string EvvEmail, string EvvPassword, string IvrPin,
+        string Authorization)> ReadEvvStateAsync(Guid employeeId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+        var state = await db.Users.AsNoTracking()
+            .Where(user => user.Id == employeeId)
+            .Select(user => new
+            {
+                user.AllowAggregator,
+                user.OverrideRestriction,
+                user.EvvOnly,
+                user.RestrictDateAndTime,
+                user.EvvEmail,
+                EvvPassword = user.EvvPasswordProtected,
+                IvrPin = user.IvrPinProtected,
+                Authorization = user.EvvIvrAuthorization,
+            })
+            .SingleAsync();
+        return (
+            state.AllowAggregator,
+            state.OverrideRestriction,
+            state.EvvOnly,
+            state.RestrictDateAndTime,
+            state.EvvEmail,
+            state.EvvPassword,
+            state.IvrPin,
+            state.Authorization);
     }
 
     private async Task<AuditLog> ReadEmployeeAuditAsync(

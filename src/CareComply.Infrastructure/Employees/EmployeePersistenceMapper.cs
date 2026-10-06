@@ -49,8 +49,7 @@ internal sealed class EmployeePersistenceMapper(
 
         if (!string.IsNullOrWhiteSpace(request.Ssn))
         {
-            employee.SsnProtected = sensitiveData.ProtectSsn(
-                request.Ssn.Replace("-", "", StringComparison.Ordinal));
+            employee.SsnProtected = sensitiveData.ProtectSsn(request.Ssn.Trim());
         }
     }
 
@@ -233,11 +232,30 @@ internal sealed class EmployeePersistenceMapper(
 
     private void ApplyEvvAndAccessSettings(ApplicationUser employee, SaveEmployeeRequest request)
     {
-        employee.AllowAggregator = request.AllowAggregator;
-        employee.OverrideRestriction = request.OverrideRestriction;
-        employee.EvvOnly = request.EvvOnly;
-        employee.RestrictDateAndTime = request.RestrictDateAndTime;
-        employee.EvvEmail = Clean(request.EvvEmail);
+        if (request.AllowAggregator.HasValue)
+        {
+            employee.AllowAggregator = request.AllowAggregator.Value;
+        }
+
+        if (request.OverrideRestriction.HasValue)
+        {
+            employee.OverrideRestriction = request.OverrideRestriction.Value;
+        }
+
+        if (request.EvvOnly.HasValue)
+        {
+            employee.EvvOnly = request.EvvOnly.Value;
+        }
+
+        if (request.RestrictDateAndTime.HasValue)
+        {
+            employee.RestrictDateAndTime = request.RestrictDateAndTime.Value;
+        }
+
+        if (request.EvvEmail is not null)
+        {
+            employee.EvvEmail = Clean(request.EvvEmail);
+        }
         if (!string.IsNullOrWhiteSpace(request.EvvPassword))
         {
             employee.EvvPasswordProtected = sensitiveData.ProtectWorkforceSecret(request.EvvPassword);
@@ -248,7 +266,10 @@ internal sealed class EmployeePersistenceMapper(
             employee.IvrPinProtected = sensitiveData.ProtectWorkforceSecret(request.IvrPin);
         }
 
-        employee.EvvIvrAuthorization = Clean(request.EvvIvrAuthorization);
+        if (request.EvvIvrAuthorization is not null)
+        {
+            employee.EvvIvrAuthorization = Clean(request.EvvIvrAuthorization);
+        }
         employee.EmployeeTier = Clean(request.EmployeeTier);
         employee.TierEffectiveDate = request.TierEffectiveDate;
         employee.IsOnboarding = request.IsOnboarding;

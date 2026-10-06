@@ -131,7 +131,8 @@ internal static class ClientApiMapper
             client.DischargeDate,
             client.DischargeReason,
             client.LocationId,
-            client.SupervisorUserId),
+            client.SupervisorUserId,
+            client.SupervisorName),
         new(
             client.SafetyMeasures,
             client.SpecialEquipment,

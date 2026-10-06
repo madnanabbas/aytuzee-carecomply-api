@@ -1,11 +1,17 @@
 using CareComply.Application.Abstractions.Clients;
 using CareComply.Application.Auditing;
 using CareComply.Application.Authorization;
+using CareComply.Domain.Clients;
 using Mediator;
 
 namespace CareComply.Application.Features.Clients.Commands.CompleteClientCreation;
 
-public sealed record CompleteClientCreationCommand(Guid ClientId, string EditorVersion)
+public sealed record CompleteClientCreationCommand(
+    Guid ClientId,
+    ClientStatus Status,
+    DateOnly? DischargeDate,
+    string? DischargeReason,
+    string EditorVersion)
     : ICommand<CompleteClientCreationResult>,
         IRequirePermission,
         IAuditableRequest<CompleteClientCreationResult>
@@ -24,7 +30,7 @@ public sealed record CompleteClientCreationCommand(Guid ClientId, string EditorV
             succeeded
                 ? AuditMetadata.Create(
                     ("previousStatus", "Pending"),
-                    ("newStatus", "Active"),
+                    ("newStatus", Status.ToString()),
                     ("changed", "true"))
                 : AuditMetadata.Create(("reasonCode", response.ReasonCode)));
     }
@@ -54,6 +60,11 @@ public sealed class CompleteClientCreationCommandHandler(IClientAdministration a
         CancellationToken cancellationToken) =>
         CompleteClientCreationResult.Completed(
             await administration.CompleteCreationAsync(
-                new(command.ClientId, command.EditorVersion),
+                new(
+                    command.ClientId,
+                    command.Status,
+                    command.DischargeDate,
+                    command.DischargeReason,
+                    command.EditorVersion),
                 cancellationToken));
 }

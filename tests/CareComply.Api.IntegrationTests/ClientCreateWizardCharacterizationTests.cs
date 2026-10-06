@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using CareComply.Application.Auditing;
 using CareComply.Application.Authorization;
 using CareComply.Domain.Clients;
@@ -450,7 +451,7 @@ public sealed class ClientCreateWizardCharacterizationTests(SqlServerApiFactory 
     }
 
     [Fact]
-    public async Task CompletionActivatesPendingClientAndPreservesPersistedWizardData()
+    public async Task CompletionAppliesAuthenticatedSelectedStatusAndPreservesPersistedWizardData()
     {
         var actor = await CreateActorAsync(
             Permissions.Client.Create,
@@ -495,14 +496,16 @@ public sealed class ClientCreateWizardCharacterizationTests(SqlServerApiFactory 
         var complete = await http.PostAsJsonAsync($"/api/clients/{clientId}/complete-creation", new
         {
             editorVersion = version,
-            status = "Discharged",
+            status = (int)ClientStatus.Discharged,
+            dischargeDate = "2026-10-01",
+            dischargeReason = "Care completed",
             companyId = Guid.NewGuid(),
         });
 
         Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
         using var completedJson = JsonDocument.Parse(await complete.Content.ReadAsStringAsync());
         Assert.Equal(clientId, completedJson.RootElement.GetProperty("id").GetGuid());
-        Assert.Equal("Active", completedJson.RootElement.GetProperty("status").GetString());
+        Assert.Equal("Discharged", completedJson.RootElement.GetProperty("status").GetString());
         var completedVersion = completedJson.RootElement.GetProperty("editorVersion").GetString()!;
         Assert.Equal(64, completedVersion.Length);
         Assert.NotEqual(version, completedVersion);
@@ -513,7 +516,9 @@ public sealed class ClientCreateWizardCharacterizationTests(SqlServerApiFactory 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
         var client = await db.Clients.AsNoTracking().SingleAsync(item => item.Id == clientId);
-        Assert.Equal(ClientStatus.Active, client.Status);
+        Assert.Equal(ClientStatus.Discharged, client.Status);
+        Assert.Equal(new DateOnly(2026, 10, 1), client.DischargeDate);
+        Assert.Equal("Care completed", client.DischargeReason);
         Assert.Equal(SqlServerApiFactory.DefaultCompanyId, client.CompanyId);
         Assert.Equal(locationId, client.LocationId);
         Assert.Equal("Step", client.FirstName);
@@ -529,7 +534,7 @@ public sealed class ClientCreateWizardCharacterizationTests(SqlServerApiFactory 
             && log.ResourceId == clientId.ToString("N")
             && log.Outcome == AuditOutcome.Succeeded);
         Assert.Equal(
-            "{\"changed\":\"true\",\"newStatus\":\"Active\",\"previousStatus\":\"Pending\"}",
+            "{\"changed\":\"true\",\"newStatus\":\"Discharged\",\"previousStatus\":\"Pending\"}",
             audit.MetadataJson);
         Assert.DoesNotContain("Step", audit.MetadataJson!, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("client@example.test", audit.MetadataJson!, StringComparison.OrdinalIgnoreCase);
@@ -878,6 +883,174 @@ public sealed class ClientCreateWizardCharacterizationTests(SqlServerApiFactory 
             ValidClientRequest(UniquePmi(), selectedLocation, wrongLocationSupervisor.Id));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("125-80asdas")]
+    [InlineData("123-45-678")]
+    [InlineData("1234567890")]
+    [InlineData("abc123456")]
+    public async Task StepOneRejectsMalformedClientSsnWithoutPersistingClient(string ssn)
+    {
+        var actor = await CreateActorAsync(Permissions.Client.Create);
+        var locationId = await MainLocationIdAsync();
+        await GiveLocationAccessAsync(actor.Id, locationId);
+        using var http = factory.CreateSecureClient();
+        await SignInAsync(http, actor.Email!);
+        var pmi = UniquePmi();
+        var request = JsonSerializer.SerializeToNode(
+            ValidBasicDetailsRequest(pmi, locationId))!.AsObject();
+        request["identity"]!["ssn"] = ssn;
+
+        var response = await http.PostAsJsonAsync("/api/clients/basic-details", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+        Assert.False(await db.Clients.AnyAsync(client => client.PmiNumber == pmi));
+    }
+
+    [Fact]
+    public async Task AuthenticatedEditPersistsLocationAndSupervisorAndReturnsAuthoritativeNames()
+    {
+        var actor = await CreateActorAsync(
+            Permissions.Client.Create,
+            Permissions.Client.Edit,
+            Permissions.Client.View);
+        var firstLocation = await MainLocationIdAsync();
+        var secondLocation = await CreateLocationAsync(SqlServerApiFactory.DefaultCompanyId);
+        await GiveLocationAccessAsync(actor.Id, firstLocation);
+        await GiveLocationAccessAsync(actor.Id, secondLocation);
+        var firstSupervisor = await CreateEmployeeAsync(firstLocation, "First Supervisor");
+        var secondSupervisor = await CreateEmployeeAsync(secondLocation, "Second Supervisor");
+        using var http = factory.CreateSecureClient();
+        await SignInAsync(http, actor.Email!);
+
+        var create = await http.PostAsJsonAsync(
+            "/api/clients",
+            ValidClientRequest(UniquePmi(), firstLocation, firstSupervisor.Id));
+        create.EnsureSuccessStatusCode();
+        var request = JsonNode.Parse(await create.Content.ReadAsStringAsync())!.AsObject();
+        var clientId = request["id"]!.GetValue<Guid>();
+        request["careSetup"]!["location"] = $"Location {secondLocation:N}";
+        request["careSetup"]!["locationId"] = secondLocation;
+        request["careSetup"]!["supervisorUserId"] = secondSupervisor.Id;
+
+        var update = await http.PutAsJsonAsync($"/api/clients/{clientId}", request);
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        using var updated = JsonDocument.Parse(await update.Content.ReadAsStringAsync());
+        var careSetup = updated.RootElement.GetProperty("careSetup");
+        Assert.Equal(secondLocation, careSetup.GetProperty("locationId").GetGuid());
+        Assert.Equal($"Location {secondLocation:N}", careSetup.GetProperty("location").GetString());
+        Assert.Equal(secondSupervisor.Id, careSetup.GetProperty("supervisorUserId").GetGuid());
+        Assert.Equal("Second Supervisor", careSetup.GetProperty("supervisorName").GetString());
+        Assert.NotEqual("Main", careSetup.GetProperty("location").GetString());
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+            var persisted = await db.Clients.AsNoTracking().SingleAsync(client => client.Id == clientId);
+            Assert.Equal(secondLocation, persisted.LocationId);
+            Assert.Equal(secondSupervisor.Id, persisted.SupervisorUserId);
+            Assert.Equal($"Location {secondLocation:N}", persisted.Location);
+        }
+
+        var read = await http.GetAsync($"/api/clients/{clientId}");
+        read.EnsureSuccessStatusCode();
+        using var readJson = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        var readCareSetup = readJson.RootElement.GetProperty("careSetup");
+        Assert.Equal(secondLocation, readCareSetup.GetProperty("locationId").GetGuid());
+        Assert.Equal($"Location {secondLocation:N}", readCareSetup.GetProperty("location").GetString());
+        Assert.Equal("Second Supervisor", readCareSetup.GetProperty("supervisorName").GetString());
+    }
+
+    [Fact]
+    public async Task AuthenticatedEditRejectsInvalidLocationAndSupervisorCombinationsWithoutMutation()
+    {
+        var actor = await CreateActorAsync(Permissions.Client.Create, Permissions.Client.Edit);
+        var firstLocation = await MainLocationIdAsync();
+        var secondLocation = await CreateLocationAsync(SqlServerApiFactory.DefaultCompanyId);
+        var inaccessibleLocation = await CreateLocationAsync(SqlServerApiFactory.DefaultCompanyId);
+        await GiveLocationAccessAsync(actor.Id, firstLocation);
+        await GiveLocationAccessAsync(actor.Id, secondLocation);
+        var firstSupervisor = await CreateEmployeeAsync(firstLocation, "Original Supervisor");
+        var otherCompany = await CreateCompanyAsync();
+        using var http = factory.CreateSecureClient();
+        await SignInAsync(http, actor.Email!);
+        var create = await http.PostAsJsonAsync(
+            "/api/clients",
+            ValidClientRequest(UniquePmi(), firstLocation, firstSupervisor.Id));
+        create.EnsureSuccessStatusCode();
+        var original = JsonNode.Parse(await create.Content.ReadAsStringAsync())!.AsObject();
+        var clientId = original["id"]!.GetValue<Guid>();
+
+        var ineligibleSupervisor = original.DeepClone().AsObject();
+        ineligibleSupervisor["careSetup"]!["locationId"] = secondLocation;
+        ineligibleSupervisor["careSetup"]!["location"] = $"Location {secondLocation:N}";
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await http.PutAsJsonAsync($"/api/clients/{clientId}", ineligibleSupervisor)).StatusCode);
+
+        var crossCompany = original.DeepClone().AsObject();
+        crossCompany["careSetup"]!["locationId"] = otherCompany.LocationId;
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await http.PutAsJsonAsync($"/api/clients/{clientId}", crossCompany)).StatusCode);
+
+        var inaccessible = original.DeepClone().AsObject();
+        inaccessible["careSetup"]!["locationId"] = inaccessibleLocation;
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await http.PutAsJsonAsync($"/api/clients/{clientId}", inaccessible)).StatusCode);
+
+        var invalidLocation = original.DeepClone().AsObject();
+        invalidLocation["careSetup"]!["locationId"] = Guid.CreateVersion7();
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            (await http.PutAsJsonAsync($"/api/clients/{clientId}", invalidLocation)).StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+        var persisted = await db.Clients.AsNoTracking().SingleAsync(client => client.Id == clientId);
+        Assert.Equal(firstLocation, persisted.LocationId);
+        Assert.Equal(firstSupervisor.Id, persisted.SupervisorUserId);
+        Assert.Equal("Main", persisted.Location);
+    }
+
+    [Fact]
+    public async Task StaleAuthenticatedEditDoesNotPartiallyUpdateLocationOrSupervisor()
+    {
+        var actor = await CreateActorAsync(Permissions.Client.Create, Permissions.Client.Edit);
+        var firstLocation = await MainLocationIdAsync();
+        var secondLocation = await CreateLocationAsync(SqlServerApiFactory.DefaultCompanyId);
+        await GiveLocationAccessAsync(actor.Id, firstLocation);
+        await GiveLocationAccessAsync(actor.Id, secondLocation);
+        var firstSupervisor = await CreateEmployeeAsync(firstLocation, "Stale Supervisor");
+        var secondSupervisor = await CreateEmployeeAsync(secondLocation, "Current Supervisor");
+        using var http = factory.CreateSecureClient();
+        await SignInAsync(http, actor.Email!);
+        var create = await http.PostAsJsonAsync(
+            "/api/clients",
+            ValidClientRequest(UniquePmi(), firstLocation, firstSupervisor.Id));
+        create.EnsureSuccessStatusCode();
+        var staleRequest = JsonNode.Parse(await create.Content.ReadAsStringAsync())!.AsObject();
+        var clientId = staleRequest["id"]!.GetValue<Guid>();
+        var currentRequest = staleRequest.DeepClone().AsObject();
+        currentRequest["careSetup"]!["locationId"] = secondLocation;
+        currentRequest["careSetup"]!["location"] = $"Location {secondLocation:N}";
+        currentRequest["careSetup"]!["supervisorUserId"] = secondSupervisor.Id;
+        (await http.PutAsJsonAsync($"/api/clients/{clientId}", currentRequest)).EnsureSuccessStatusCode();
+
+        var stale = await http.PutAsJsonAsync($"/api/clients/{clientId}", staleRequest);
+
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+        var persisted = await db.Clients.AsNoTracking().SingleAsync(client => client.Id == clientId);
+        Assert.Equal(secondLocation, persisted.LocationId);
+        Assert.Equal(secondSupervisor.Id, persisted.SupervisorUserId);
+        Assert.Equal($"Location {secondLocation:N}", persisted.Location);
     }
 
     [Fact]

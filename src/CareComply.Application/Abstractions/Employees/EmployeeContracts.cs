@@ -80,7 +80,7 @@ public sealed record SaveEmployeeRequest(Guid? CompanyId, IReadOnlyList<Guid>? L
     EmployeeBackgroundInformation? BackgroundInformation,
     EmployeeTrainingInformation? TrainingInformation,
     IReadOnlyList<EmployeeContact>? Contacts,
-    bool AllowAggregator, bool OverrideRestriction, bool EvvOnly, bool RestrictDateAndTime,
+    bool? AllowAggregator, bool? OverrideRestriction, bool? EvvOnly, bool? RestrictDateAndTime,
     string? EvvEmail, string? EvvPassword, string? IvrPin, string? EvvIvrAuthorization, string? EmployeeTier,
     DateOnly? TierEffectiveDate, bool IsOnboarding, bool AllowVisitScreen, bool AllowTravelTime,
     bool AllowManualEntry, bool AllowOneTimeLogin, string? EditorVersion = null);

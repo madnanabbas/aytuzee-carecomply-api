@@ -182,6 +182,12 @@ internal sealed class EfClientDirectory(
                 item.LanguageName,
                 item.IsPrimary))
             .ToArrayAsync(cancellationToken);
+        var supervisorName = client.SupervisorUserId is { } supervisorUserId
+            ? await context.Users.AsNoTracking()
+                .Where(user => user.Id == supervisorUserId && user.CompanyId == client.CompanyId)
+                .Select(user => user.FirstName + " " + user.LastName)
+                .SingleOrDefaultAsync(cancellationToken) ?? string.Empty
+            : string.Empty;
 
         return new(
             client.Id,
@@ -224,7 +230,8 @@ internal sealed class EfClientDirectory(
             client.UpdatedAtUtc,
             ClientEditorVersion.Create(client.RowVersion),
             client.LocationId,
-            client.SupervisorUserId);
+            client.SupervisorUserId,
+            supervisorName);
     }
 
     private static IQueryable<Client> ApplySort(

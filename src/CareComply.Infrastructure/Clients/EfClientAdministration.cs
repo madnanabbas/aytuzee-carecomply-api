@@ -419,6 +419,11 @@ internal sealed class EfClientAdministration(
             cancellationToken);
         if (location is null) return Failed(ClientAdministrationStatus.InvalidState);
 
+        if (!tenant.IsPlatformAdministrator && !await context.UserLocations.AsNoTracking().AnyAsync(
+                access => access.UserId == tenant.UserId && access.LocationId == location.Id,
+                cancellationToken))
+            return Failed(ClientAdministrationStatus.NotFound);
+
         if (!(request.CareSetup.SupervisorUserId == client.SupervisorUserId && location.Id == client.LocationId) &&
             !await assignmentResolver.IsValidSupervisorAsync(
                 request.CareSetup.SupervisorUserId,
@@ -721,7 +726,11 @@ internal sealed class EfClientAdministration(
 
         try
         {
-            client.ChangeStatus(ClientStatus.Active, null, null, timeProvider.GetUtcNow());
+            client.ChangeStatus(
+                request.Status,
+                request.Status == ClientStatus.Discharged ? request.DischargeDate : null,
+                request.Status == ClientStatus.Discharged ? request.DischargeReason : null,
+                timeProvider.GetUtcNow());
             await context.SaveChangesAsync(cancellationToken);
 
             return new(

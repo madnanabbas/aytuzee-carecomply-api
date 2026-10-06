@@ -1,4 +1,5 @@
 using CareComply.Application.Abstractions.Employees;
+using CareComply.Application.Features.Clients;
 using FluentValidation;
 
 namespace CareComply.Application.Features.Employees;
@@ -91,10 +92,17 @@ public sealed class EmployeeRequestValidation
                 context.AddFailure(nameof(request.Gender), "Gender is required.");
             }
 
-            if (string.IsNullOrWhiteSpace(request.Phone) || request.Phone.Count(char.IsDigit) != 10)
+            if (!ClientValidation.IsValidUsPhone(request.Phone))
             {
-                context.AddFailure(nameof(request.Phone), "Enter a 10-digit phone number.");
+                context.AddFailure(nameof(request.Phone), "Enter a valid 10-digit US phone number.");
             }
+
+            AddOptionalPhoneError(request.SecondaryPhone, nameof(request.SecondaryPhone), context);
+            AddOptionalPhoneError(
+                request.EmergencyContactPhone,
+                nameof(request.EmergencyContactPhone),
+                context);
+            AddOptionalPhoneError(request.PayerPhone, nameof(request.PayerPhone), context);
 
             if (string.IsNullOrWhiteSpace(request.StreetAddress))
             {
@@ -106,9 +114,10 @@ public sealed class EmployeeRequestValidation
                 context.AddFailure(nameof(request.Ssn), "SSN is required when creating an employee.");
             }
 
-            if (!string.IsNullOrWhiteSpace(request.Ssn) && request.Ssn.Count(char.IsDigit) != 9)
+            if (!string.IsNullOrWhiteSpace(request.Ssn)
+                && (request.Ssn.Length != 9 || !request.Ssn.All(char.IsAsciiDigit)))
             {
-                context.AddFailure(nameof(request.Ssn), "SSN must contain 9 digits.");
+                context.AddFailure(nameof(request.Ssn), "SSN must contain exactly 9 digits.");
             }
 
             if (!string.IsNullOrWhiteSpace(request.EvvEmail)
@@ -346,10 +355,22 @@ public sealed class EmployeeRequestValidation
                     context.AddFailure(nameof(request.Contacts), "Contact name or relationship exceeds the allowed length.");
                 }
 
-                if (!string.IsNullOrWhiteSpace(contact.Phone) && contact.Phone.Count(char.IsDigit) != 10)
+                if (!string.IsNullOrWhiteSpace(contact.Phone)
+                    && !ClientValidation.IsValidUsPhone(contact.Phone))
                 {
-                    context.AddFailure(nameof(request.Contacts), "Contact phone must contain 10 digits.");
+                    context.AddFailure(nameof(request.Contacts), "Contact phone must contain exactly 10 US digits.");
                 }
+            }
+        }
+
+        private static void AddOptionalPhoneError(
+            string? phone,
+            string propertyName,
+            ValidationContext<SaveEmployeeRequest> context)
+        {
+            if (!string.IsNullOrWhiteSpace(phone) && !ClientValidation.IsValidUsPhone(phone))
+            {
+                context.AddFailure(propertyName, "Enter a valid 10-digit US phone number.");
             }
         }
     }
