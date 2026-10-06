@@ -15,6 +15,8 @@ public static class Permissions
         public const string Create = "Client.Create";
         public const string Edit = "Client.Edit";
         public const string Archive = "Client.Archive";
+        public const string RevealSsn = "Client.RevealSsn";
+        public const string GuestInvite = "Client.GuestInvite";
     }
 
     public static class ClientDocument
@@ -24,6 +26,105 @@ public static class Permissions
         public const string Download = "ClientDocument.Download";
         public const string Replace = "ClientDocument.Replace";
         public const string Archive = "ClientDocument.Archive";
+    }
+
+    public static class ClientTodo
+    {
+        public const string View = "ClientTodo.View";
+        public const string Create = "ClientTodo.Create";
+        public const string Edit = "ClientTodo.Edit";
+        public const string Complete = "ClientTodo.Complete";
+        public const string Reopen = "ClientTodo.Reopen";
+        public const string Cancel = "ClientTodo.Cancel";
+    }
+
+    public static class ClientQuickNote
+    {
+        public const string View = "ClientQuickNote.View";
+        public const string Create = "ClientQuickNote.Create";
+        public const string Edit = "ClientQuickNote.Edit";
+    }
+
+    public static class ClientServiceAgreement
+    {
+        public const string View = "ClientServiceAgreement.View";
+        public const string Create = "ClientServiceAgreement.Create";
+        public const string Edit = "ClientServiceAgreement.Edit";
+    }
+
+    public static class ClientCaregiver
+    {
+        public const string View = "ClientCaregiver.View";
+        public const string Create = "ClientCaregiver.Create";
+        public const string Edit = "ClientCaregiver.Edit";
+    }
+
+    public static class ClientResponsibleParty
+    {
+        public const string View = "ClientResponsibleParty.View";
+        public const string Create = "ClientResponsibleParty.Create";
+        public const string Edit = "ClientResponsibleParty.Edit";
+    }
+
+    public static class ClientContact
+    {
+        public const string View = "ClientContact.View";
+        public const string Create = "ClientContact.Create";
+        public const string Edit = "ClientContact.Edit";
+    }
+
+    public static class ClientCareCoordinator
+    {
+        public const string View = "ClientCareCoordinator.View";
+        public const string Create = "ClientCareCoordinator.Create";
+        public const string Edit = "ClientCareCoordinator.Edit";
+    }
+
+    public static class ClientConsultationProvider
+    {
+        public const string View = "ClientConsultationProvider.View";
+        public const string Create = "ClientConsultationProvider.Create";
+        public const string Edit = "ClientConsultationProvider.Edit";
+    }
+
+    public static class ClientPhysician
+    {
+        public const string View = "ClientPhysician.View";
+        public const string Create = "ClientPhysician.Create";
+        public const string Edit = "ClientPhysician.Edit";
+    }
+
+    public static class ClientHospitalization
+    {
+        public const string View = "ClientHospitalization.View";
+        public const string Create = "ClientHospitalization.Create";
+        public const string Edit = "ClientHospitalization.Edit";
+    }
+
+    public static class ClientVisit
+    {
+        public const string View = "ClientVisit.View";
+        public const string Create = "ClientVisit.Create";
+        public const string Edit = "ClientVisit.Edit";
+    }
+
+    public static class ClientForm
+    {
+        public const string View = "ClientForm.View";
+        public const string Create = "ClientForm.Create";
+        public const string Edit = "ClientForm.Edit";
+    }
+
+    public static class ClientEmailLog
+    {
+        public const string View = "ClientEmailLog.View";
+    }
+
+    public static class ClientEmployeeService
+    {
+        public const string View = "ClientEmployeeService.View";
+        public const string Create = "ClientEmployeeService.Create";
+        public const string Edit = "ClientEmployeeService.Edit";
     }
 
     public static class Employee
@@ -112,7 +213,8 @@ public static class Permissions
     [SuppressMessage(
         "Naming",
         "CA1711:Identifiers should not have incorrect suffix",
-        Justification = "Permission matches the canonical Permission.View and Permission.Manage resource name.")]
+        Justification = "Permission matches the canonical Permission.View and Permission.Manage resource name."
+    )]
     public static class Permission
     {
         public const string View = "Permission.View";
@@ -124,13 +226,66 @@ public static class Permissions
         public const string View = "AuditLog.View";
     }
 
-    public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(
-        [
+    public static class Company
+    {
+        public const string View = "Company.View";
+        public const string Create = "Company.Create";
+        public const string Edit = "Company.Edit";
+        public const string Delete = "Company.Delete";
+    }
+
+    public static IReadOnlyList<string> All { get; } =
+        Array.AsReadOnly([
             Dashboard.View,
             Client.View,
             Client.Create,
             Client.Edit,
             Client.Archive,
+            Client.RevealSsn,
+            Client.GuestInvite,
+            ClientTodo.View,
+            ClientTodo.Create,
+            ClientTodo.Edit,
+            ClientTodo.Complete,
+            ClientTodo.Reopen,
+            ClientTodo.Cancel,
+            ClientQuickNote.View,
+            ClientQuickNote.Create,
+            ClientQuickNote.Edit,
+            ClientServiceAgreement.View,
+            ClientServiceAgreement.Create,
+            ClientServiceAgreement.Edit,
+            ClientCaregiver.View,
+            ClientCaregiver.Create,
+            ClientCaregiver.Edit,
+            ClientResponsibleParty.View,
+            ClientResponsibleParty.Create,
+            ClientResponsibleParty.Edit,
+            ClientContact.View,
+            ClientContact.Create,
+            ClientContact.Edit,
+            ClientCareCoordinator.View,
+            ClientCareCoordinator.Create,
+            ClientCareCoordinator.Edit,
+            ClientConsultationProvider.View,
+            ClientConsultationProvider.Create,
+            ClientConsultationProvider.Edit,
+            ClientPhysician.View,
+            ClientPhysician.Create,
+            ClientPhysician.Edit,
+            ClientHospitalization.View,
+            ClientHospitalization.Create,
+            ClientHospitalization.Edit,
+            ClientVisit.View,
+            ClientVisit.Create,
+            ClientVisit.Edit,
+            ClientForm.View,
+            ClientForm.Create,
+            ClientForm.Edit,
+            ClientEmailLog.View,
+            ClientEmployeeService.View,
+            ClientEmployeeService.Create,
+            ClientEmployeeService.Edit,
             ClientDocument.View,
             ClientDocument.Upload,
             ClientDocument.Download,
@@ -174,10 +329,13 @@ public static class Permissions
             Permission.View,
             Permission.Manage,
             AuditLog.View,
+            Company.View,
+            Company.Create,
+            Company.Edit,
+            Company.Delete,
         ]);
 
-    private static readonly HashSet<string> DefinedPermissions =
-        new(All, StringComparer.Ordinal);
+    private static readonly HashSet<string> DefinedPermissions = new(All, StringComparer.Ordinal);
 
     public static bool IsDefined(string? permission) =>
         permission is not null && DefinedPermissions.Contains(permission);

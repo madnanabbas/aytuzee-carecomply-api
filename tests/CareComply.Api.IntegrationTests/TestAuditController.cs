@@ -72,6 +72,7 @@ public sealed class TestAuditController(
             context.Roles.Add(new ApplicationRole
             {
                 Id = message.ResourceId,
+                CompanyId = SqlServerApiFactory.DefaultCompanyId,
                 Name = roleName,
                 NormalizedName = roleName.ToUpperInvariant(),
             });
@@ -106,7 +107,14 @@ public sealed class TestAuditRequest
 public sealed record TestAuditResult(
     string ResourceId,
     AuditOutcome Outcome,
-    AuthorizationFailure? AuthorizationFailure);
+    AuthorizationFailure? AuthorizationFailure)
+    : IAuthorizationFailureResponse<TestAuditResult>
+{
+    public static TestAuditResult Denied(AuthorizationFailure failure) => new(
+        string.Empty,
+        AuditOutcome.Failed,
+        failure);
+}
 
 public sealed class TestAuditCommand(
     string mode,
@@ -148,15 +156,6 @@ public sealed class TestAuditCommandValidator : AbstractValidator<TestAuditComma
         RuleFor(command => command.Mode).NotEmpty();
         RuleFor(command => command.ResourceId).NotEmpty();
     }
-}
-
-public sealed class TestAuditAuthorizationFailureResultFactory
-    : IAuthorizationFailureResultFactory<TestAuditResult>
-{
-    public TestAuditResult Create(AuthorizationFailure failure) => new(
-        string.Empty,
-        AuditOutcome.Failed,
-        failure);
 }
 
 public static class TestAuditModes

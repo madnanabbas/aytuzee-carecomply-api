@@ -5,6 +5,7 @@ namespace CareComply.Infrastructure.Identity;
 
 internal sealed class IdentityAuthenticationService(
     MfaFlowSession mfaFlowSession,
+    IMfaEmailSender mfaEmailSender,
     IMfaRequirementEvaluator mfaRequirementEvaluator,
     LoginPasswordTimingProtector loginPasswordTimingProtector,
     SignInManager<ApplicationUser> signInManager,
@@ -45,7 +46,9 @@ internal sealed class IdentityAuthenticationService(
             return IdentityAuthenticationOutcome.Unavailable;
         }
 
-        if (isMfaRequired && !user.TwoFactorEnabled)
+        if (isMfaRequired
+            && user.MfaMethod == UserMfaMethod.Authenticator
+            && !user.TwoFactorEnabled)
         {
             var passwordResult = await signInManager.CheckPasswordSignInAsync(
                 user,
@@ -56,8 +59,36 @@ internal sealed class IdentityAuthenticationService(
                 return IdentityAuthenticationOutcome.Failed;
             }
 
-            await mfaFlowSession.StoreAsync(user, MfaFlowKind.Enrollment);
+            await mfaFlowSession.StoreAsync(
+                user,
+                MfaFlowKind.Enrollment,
+                UserMfaMethod.Authenticator);
             return IdentityAuthenticationOutcome.RequiresMfaEnrollment;
+        }
+
+        if (isMfaRequired
+            && user.MfaMethod == UserMfaMethod.Email
+            && !user.TwoFactorEnabled)
+        {
+            var passwordResult = await signInManager.CheckPasswordSignInAsync(
+                user,
+                password,
+                lockoutOnFailure: true);
+            if (!passwordResult.Succeeded)
+            {
+                return IdentityAuthenticationOutcome.Failed;
+            }
+
+            if (!user.EmailConfirmed || string.IsNullOrWhiteSpace(user.Email))
+            {
+                return IdentityAuthenticationOutcome.Unavailable;
+            }
+
+            var enableResult = await userManager.SetTwoFactorEnabledAsync(user, true);
+            if (!enableResult.Succeeded)
+            {
+                return IdentityAuthenticationOutcome.Unavailable;
+            }
         }
 
         var signInResult = await signInManager.PasswordSignInAsync(
@@ -68,7 +99,20 @@ internal sealed class IdentityAuthenticationService(
 
         if (signInResult.RequiresTwoFactor)
         {
-            await mfaFlowSession.StoreAsync(user, MfaFlowKind.Verification);
+            if (user.MfaMethod == UserMfaMethod.Email)
+            {
+                var delivered = await SendEmailCodeAsync(user, cancellationToken);
+                if (!delivered)
+                {
+                    await mfaFlowSession.ClearAsync();
+                    return IdentityAuthenticationOutcome.Unavailable;
+                }
+            }
+
+            await mfaFlowSession.StoreAsync(
+                user,
+                MfaFlowKind.Verification,
+                user.MfaMethod);
             return IdentityAuthenticationOutcome.RequiresTwoFactor;
         }
 
@@ -89,5 +133,21 @@ internal sealed class IdentityAuthenticationService(
 
         await signInManager.SignOutAsync();
         return IdentityAuthenticationOutcome.Unavailable;
+    }
+
+    private async Task<bool> SendEmailCodeAsync(
+        ApplicationUser user,
+        CancellationToken cancellationToken)
+    {
+        if (!user.EmailConfirmed || string.IsNullOrWhiteSpace(user.Email))
+        {
+            return false;
+        }
+
+        var code = await userManager.GenerateTwoFactorTokenAsync(
+            user,
+            TokenOptions.DefaultEmailProvider);
+        cancellationToken.ThrowIfCancellationRequested();
+        return await mfaEmailSender.SendCodeAsync(user.Email, code, cancellationToken);
     }
 }

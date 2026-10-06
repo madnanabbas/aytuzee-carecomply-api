@@ -337,7 +337,11 @@ public sealed class AuditIntegrationTests(SqlServerApiFactory factory)
         var context = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
         var trackedUser = await userManager.FindByIdAsync(user.Id.ToString());
         Assert.NotNull(trackedUser);
-        var role = new ApplicationRole { Name = $"AuditRole-{Guid.NewGuid():N}" };
+        var role = new ApplicationRole
+        {
+            CompanyId = SqlServerApiFactory.DefaultCompanyId,
+            Name = $"AuditRole-{Guid.NewGuid():N}"
+        };
         Assert.True((await roleManager.CreateAsync(role)).Succeeded);
         Assert.True((await userManager.AddToRoleAsync(trackedUser, role.Name!)).Succeeded);
         var permissionId = await context.Set<Permission>()

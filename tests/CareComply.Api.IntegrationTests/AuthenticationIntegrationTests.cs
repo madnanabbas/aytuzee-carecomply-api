@@ -50,12 +50,12 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
 
         Assert.Equal(HttpStatusCode.NoContent, loginResponse.StatusCode);
         var cookie = Assert.Single(
-            loginResponse.Headers.GetValues("Set-Cookie"),
+            loginResponse.Headers.GetValues("Set-Cookie"), 
             value => value.StartsWith("__Host-CareComply.Auth=", StringComparison.Ordinal));
         Assert.Contains("path=/", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("secure", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("httponly", cookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("samesite=strict", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=none", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("domain=", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("expires=", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("max-age=", cookie, StringComparison.OrdinalIgnoreCase);
@@ -346,17 +346,35 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
 
         Assert.Equal(
             [
-                "__EFMigrationsHistory",
-                "AuditLogs",
-                "Permissions",
-                "RoleClaims",
-                "RolePermissions",
-                "Roles",
-                "UserClaims",
-                "UserLogins",
-                "UserRoles",
-                "Users",
-                "UserTokens",
+                    "__EFMigrationsHistory",
+                    "AuditLogs",
+                    "ClientAdditionalProfiles",
+                    "ClientCaregivers",
+                    "ClientContacts",
+                    "ClientGuestInvitations",
+                    "ClientGuestSessions",
+                    "ClientHospitalizations",
+                    "ClientLanguagePreferences",
+                    "Clients",
+                    "ClientServices",
+                    "ClientTodos",
+                    "Companies",
+                    "CompanyLocations",
+                    "NavigationFeaturePermissions",
+                    "NavigationFeatures",
+                    "NavigationModules",
+                    "Permissions",
+                    "RoleClaims",
+                    "RolePermissionFeatureLinks",
+                    "RolePermissions",
+                    "RoleProfiles",
+                    "Roles",
+                    "UserClaims",
+                    "UserLocations",
+                    "UserLogins",
+                    "UserRoles",
+                    "Users",
+                    "UserTokens",
             ],
             tables);
 
@@ -374,18 +392,34 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
 
         Assert.Equal(
             [
+                "UX_ClientContacts_Client_Type_Primary",
+                "UX_ClientGuestInvitations_CreatedClientId",
+                "UX_ClientGuestInvitations_TokenHash",
+                "UX_ClientGuestSessions_InvitationId",
+                "UX_ClientGuestSessions_SessionTokenHash",
+                "UX_ClientLanguagePreferences_Primary",
+                "UX_Clients_PmiNumber",
+                "UX_ClientServices_Client_Code_Active",
+                "UX_ClientServices_Client_Code_StartDate",
+                "UX_Companies_Code",
+                "UX_NavigationFeatures_Key",
+                "UX_NavigationFeatures_Route",
+                "UX_NavigationModules_Key",
                 "UX_Permissions_Name",
+                "UX_RolePermissionFeatureLinks_PermissionId",
                 "UX_Roles_NormalizedName",
                 "UX_Users_NormalizedEmail",
                 "UX_Users_NormalizedUserName",
             ],
             uniqueIndexes);
 
+        
+
         await using var foreignKeyCommand = connection.CreateCommand();
         foreignKeyCommand.CommandText =
             "SELECT COUNT(*) FROM sys.foreign_keys WHERE schema_id = SCHEMA_ID('dbo')";
         Assert.Equal(
-            9,
+            42,
             Convert.ToInt32(
                 await foreignKeyCommand.ExecuteScalarAsync(),
                 CultureInfo.InvariantCulture));

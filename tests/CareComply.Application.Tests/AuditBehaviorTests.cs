@@ -99,8 +99,7 @@ public sealed class AuditBehaviorTests
             [new AuditableCommandValidator()]);
         var authorization = new AuthorizationBehavior<AuditableCommand, AuditableResult>(
             new StubCurrentActor(true, Guid.CreateVersion7()),
-            resolver,
-            [new AuditableResultAuthorizationFactory()]);
+            resolver);
         var execution = new RecordingAuditExecution();
         var audit = new AuditBehavior<AuditableCommand, AuditableResult>(
             new StubCurrentActor(true, Guid.CreateVersion7()),
@@ -181,18 +180,16 @@ public sealed class AuditBehaviorTests
             response.Outcome);
     }
 
-    private sealed record AuditableResult(string ResourceId, AuditOutcome Outcome);
+    private sealed record AuditableResult(string ResourceId, AuditOutcome Outcome)
+        : IAuthorizationFailureResponse<AuditableResult>
+    {
+        public static AuditableResult Denied(AuthorizationFailure failure) =>
+            new("authorization-denied", AuditOutcome.Failed);
+    }
 
     private sealed class AuditableCommandValidator : AbstractValidator<AuditableCommand>
     {
         public AuditableCommandValidator() => RuleFor(command => command.Value).NotEmpty();
-    }
-
-    private sealed class AuditableResultAuthorizationFactory
-        : IAuthorizationFailureResultFactory<AuditableResult>
-    {
-        public AuditableResult Create(AuthorizationFailure failure) =>
-            new("authorization-denied", AuditOutcome.Failed);
     }
 
     private sealed record StubCurrentActor(bool IsAuthenticated, Guid? UserId) : ICurrentActor;

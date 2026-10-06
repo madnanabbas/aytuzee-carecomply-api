@@ -4,6 +4,7 @@ using CareComply.Application.Features.Authentication.Commands.CancelMfaChallenge
 using CareComply.Application.Features.Authentication.Commands.ConfirmMfaEnrollment;
 using CareComply.Application.Features.Authentication.Commands.VerifyMfa;
 using CareComply.Application.Features.Authentication.Commands.VerifyMfaRecoveryCode;
+using CareComply.Application.Features.Authentication.Commands.ResendMfaEmailCode;
 using CareComply.Application.Features.Authentication.Queries.GetMfaContext;
 
 namespace CareComply.Application.Tests;
@@ -17,7 +18,7 @@ public sealed class MfaCommandHandlerTests
         using var cancellation = new CancellationTokenSource();
 
         Assert.Equal(
-            MfaContextKind.VerificationRequired,
+            new MfaContext(MfaContextKind.VerificationRequired, UserMfaMethod.Authenticator),
             await new GetMfaContextQueryHandler(identity).Handle(
                 new GetMfaContextQuery(),
                 cancellation.Token));
@@ -33,6 +34,11 @@ public sealed class MfaCommandHandlerTests
             MfaSignInStatus.Succeeded,
             await new VerifyMfaCommandHandler(identity).Handle(
                 new VerifyMfaCommand("654321"),
+                cancellation.Token));
+        Assert.Equal(
+            MfaEmailSendStatus.Succeeded,
+            await new ResendMfaEmailCodeCommandHandler(identity).Handle(
+                new ResendMfaEmailCodeCommand(),
                 cancellation.Token));
         Assert.Equal(
             MfaSignInStatus.Succeeded,
@@ -90,10 +96,12 @@ public sealed class MfaCommandHandlerTests
         public string? RecoveryCode { get; private set; }
         public bool Cancelled { get; private set; }
 
-        public Task<MfaContextKind> GetContextAsync(CancellationToken cancellationToken)
+        public Task<MfaContext> GetContextAsync(CancellationToken cancellationToken)
         {
             CancellationTokens.Add(cancellationToken);
-            return Task.FromResult(MfaContextKind.VerificationRequired);
+            return Task.FromResult(new MfaContext(
+                MfaContextKind.VerificationRequired,
+                UserMfaMethod.Authenticator));
         }
 
         public Task<MfaEnrollmentData?> BeginEnrollmentAsync(CancellationToken cancellationToken)
@@ -131,6 +139,13 @@ public sealed class MfaCommandHandlerTests
             return Task.FromResult(MfaSignInStatus.Succeeded);
         }
 
+        public Task<MfaEmailSendStatus> ResendEmailCodeAsync(
+            CancellationToken cancellationToken)
+        {
+            CancellationTokens.Add(cancellationToken);
+            return Task.FromResult(MfaEmailSendStatus.Succeeded);
+        }
+
         public Task CancelAsync(CancellationToken cancellationToken)
         {
             Cancelled = true;
@@ -141,8 +156,8 @@ public sealed class MfaCommandHandlerTests
 
     private sealed class ThrowingIdentityMfa(Exception exception) : IIdentityMfa
     {
-        public Task<MfaContextKind> GetContextAsync(CancellationToken cancellationToken) =>
-            Task.FromException<MfaContextKind>(exception);
+        public Task<MfaContext> GetContextAsync(CancellationToken cancellationToken) =>
+            Task.FromException<MfaContext>(exception);
 
         public Task<MfaEnrollmentData?> BeginEnrollmentAsync(CancellationToken cancellationToken) =>
             Task.FromException<MfaEnrollmentData?>(exception);
@@ -161,6 +176,10 @@ public sealed class MfaCommandHandlerTests
             string recoveryCode,
             CancellationToken cancellationToken) =>
             Task.FromException<MfaSignInStatus>(exception);
+
+        public Task<MfaEmailSendStatus> ResendEmailCodeAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromException<MfaEmailSendStatus>(exception);
 
         public Task CancelAsync(CancellationToken cancellationToken) =>
             Task.FromException(exception);

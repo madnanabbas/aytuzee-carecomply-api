@@ -11,6 +11,9 @@ Read `/docs/22-backend-authorization.md` before changing permissions, roles, aut
 Read `/docs/23-audit-logging.md` before adding or changing audit intent, audit metadata, audit persistence, auditable requests, audit transaction semantics, append-only enforcement, or security/business logging boundaries.
 Read `/docs/24-local-development-authentication.md` before changing Development identity fixtures, their command gating, local authentication setup, or the frontend/backend local session workflow.
 Read `/docs/25-mfa-authentication.md` before changing MFA policy, authenticator enrollment, MFA/recovery challenges, temporary MFA cookies, or MFA frontend/backend flows.
+Read `/docs/26-user-management.md` before changing user-directory, provisioning, profile/status/MFA administration, or User Management API contracts.
+Read `/docs/27-password-recovery.md` before changing forgot/reset password endpoints, Identity reset tokens, password-recovery email delivery, trusted reset URLs, or related configuration.
+Read `/docs/28-dynamic-navigation.md` before changing navigation metadata persistence, navigation filtering, hierarchy, or the navigation API.
 
 Applies to `/backend`.
 

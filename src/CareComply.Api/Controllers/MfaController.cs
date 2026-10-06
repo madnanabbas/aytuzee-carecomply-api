@@ -7,6 +7,7 @@ using CareComply.Application.Features.Authentication.Commands.CancelMfaChallenge
 using CareComply.Application.Features.Authentication.Commands.ConfirmMfaEnrollment;
 using CareComply.Application.Features.Authentication.Commands.VerifyMfa;
 using CareComply.Application.Features.Authentication.Commands.VerifyMfaRecoveryCode;
+using CareComply.Application.Features.Authentication.Commands.ResendMfaEmailCode;
 using CareComply.Application.Features.Authentication.Queries.GetMfaContext;
 using Mediator;
 using Microsoft.AspNetCore.Antiforgery;
@@ -31,16 +32,19 @@ public sealed class MfaController(
     {
         SetNoStore();
         var context = await sender.Send(new GetMfaContextQuery(), cancellationToken);
-        if (context == MfaContextKind.None)
+        if (context.Kind == MfaContextKind.None)
         {
             return ChallengeExpired();
         }
 
         var tokens = antiforgery.GetAndStoreTokens(HttpContext);
-        var status = context == MfaContextKind.VerificationRequired
+        var status = context.Kind == MfaContextKind.VerificationRequired
             ? "mfaRequired"
             : "mfaEnrollmentRequired";
-        return Ok(new MfaContextResponse(status, tokens.RequestToken));
+        return Ok(new MfaContextResponse(
+            status,
+            context.Method.ToString(),
+            tokens.RequestToken));
     }
 
     [HttpPost("enrollment/begin")]
@@ -104,6 +108,23 @@ public sealed class MfaController(
             new VerifyMfaRecoveryCodeCommand(request.RecoveryCode ?? string.Empty),
             cancellationToken);
         return MapSignInResult(result, isRecoveryCode: true);
+    }
+
+    [EnableRateLimiting(CareComplyAuthenticationServiceCollectionExtensions.MfaEmailResendRateLimitPolicy)]
+    [HttpPost("email/resend")]
+    public async Task<IActionResult> ResendEmailCode(CancellationToken cancellationToken)
+    {
+        SetNoStore();
+        var result = await sender.Send(
+            new ResendMfaEmailCodeCommand(),
+            cancellationToken);
+        return result switch
+        {
+            MfaEmailSendStatus.Succeeded => NoContent(),
+            MfaEmailSendStatus.Expired => ChallengeExpired(),
+            MfaEmailSendStatus.Unavailable => MfaUnavailable(),
+            _ => throw new InvalidOperationException("The MFA email result is invalid."),
+        };
     }
 
     [HttpPost("cancel")]

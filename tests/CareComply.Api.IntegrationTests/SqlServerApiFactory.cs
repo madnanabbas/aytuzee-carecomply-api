@@ -15,15 +15,26 @@ using Testcontainers.MsSql;
 using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
+using CareComply.Application.Abstractions.Identity;
+using CareComply.Application.Abstractions.Clients;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CareComply.Api.IntegrationTests;
 
 public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    internal static readonly Guid DefaultCompanyId =
+    Guid.Parse("01990000-0000-7000-8000-000000000001");
     private const string SqlServerImage =
         "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
 
     private readonly MsSqlContainer _sqlServer = new MsSqlBuilder(SqlServerImage).Build();
+
+    public RecordingPasswordRecoveryEmailSender PasswordRecoveryEmailSender { get; } = new();
+    public RecordingMfaEmailSender MfaEmailSender { get; } = new();
+    public RecordingClientGuestInvitationEmailSender ClientGuestInvitationEmailSender { get; } = new();
+    public PermissionQueryCounter PermissionQueryCounter =>
+        Services.GetRequiredService<PermissionQueryCounter>();
 
     public async Task InitializeAsync()
     {
@@ -47,16 +58,18 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
     public async Task<ApplicationUser> CreateUserAsync(
         string email,
         string password,
-        bool isActive = true)
+        bool isActive = true,
+        bool emailConfirmed = true)
     {
         using var scope = Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var now = DateTimeOffset.UtcNow;
         var user = new ApplicationUser
         {
+            CompanyId = DefaultCompanyId,
             Email = email,
             UserName = email,
-            EmailConfirmed = true,
+            EmailConfirmed = emailConfirmed,
             FirstName = "Test",
             LastName = "User",
             IsActive = isActive,
@@ -112,7 +125,11 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
         var context = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
         var user = await userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException("The expected test user does not exist.");
-        var role = new ApplicationRole { Name = $"MfaTest-{Guid.NewGuid():N}" };
+        var role = new ApplicationRole
+        {
+            CompanyId = DefaultCompanyId,
+            Name = $"MfaTest-{Guid.NewGuid():N}"
+        };
         Assert.True((await roleManager.CreateAsync(role)).Succeeded);
         Assert.True((await userManager.AddToRoleAsync(user, role.Name!)).Succeeded);
         var permission = await context.Set<Permission>()
@@ -202,29 +219,62 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
         return await context.Set<AuditLog>().CountAsync(log => log.ActorUserId == userId);
     }
 
+    public async Task<int> CountAllBusinessAuditLogsAsync()
+    {
+        using var scope = Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+        return await context.Set<AuditLog>().CountAsync();
+    }
+
+    public async Task<IReadOnlyList<string>> GetUserRolesAsync(Guid userId)
+    {
+        using var scope = Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString())
+            ?? throw new InvalidOperationException("The expected test user does not exist.");
+        return [.. await userManager.GetRolesAsync(user)];
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:CareComply", GetApplicationConnectionString());
         builder.UseSetting("Authentication:LoginRateLimit:PermitLimit", "100");
         builder.UseSetting("Authentication:Mfa:VerificationRateLimitPermitLimit", "100");
+        builder.UseSetting("Authentication:Mfa:EmailResendRateLimitPermitLimit", "100");
+        builder.UseSetting("Authentication:PasswordRecovery:ForgotRateLimitPermitLimit", "100");
+        builder.UseSetting("Authentication:PasswordRecovery:ResetRateLimitPermitLimit", "100");
+        builder.UseSetting("ClientGuestInvitation:PublicValidationRateLimitPermitLimit", "1000");
+        builder.UseSetting("PasswordRecovery:FrontendBaseUrl", "https://carecomply.example.test");
+        builder.UseSetting(
+            "ClientGuestInvitation:PublicClientIntakeUrl",
+            "https://carecomply.example.test/client-intake");
+        builder.UseSetting("ClientGuestInvitation:Lifetime", "7.00:00:00");
+        builder.UseSetting(
+            "EmailDelivery:AzureCommunicationServicesEndpoint",
+            "https://carecomply-email.communication.azure.com");
+        builder.UseSetting("EmailDelivery:SenderAddress", "noreply@example.test");
         builder.ConfigureServices(services =>
         {
+            services.RemoveAll<IPasswordRecoveryEmailSender>();
+            services.AddSingleton<IPasswordRecoveryEmailSender>(PasswordRecoveryEmailSender);
+            services.RemoveAll<IMfaEmailSender>();
+            services.AddSingleton<IMfaEmailSender>(MfaEmailSender);
+            services.RemoveAll<IClientGuestInvitationEmailSender>();
+            services.AddSingleton<IClientGuestInvitationEmailSender>(ClientGuestInvitationEmailSender);
+            services.AddSingleton<PermissionQueryCounter>();
+            services.AddDbContext<CareComplyDbContext>((serviceProvider, options) =>
+                options.AddInterceptors(
+                    serviceProvider.GetRequiredService<PermissionQueryCounter>()));
             services.AddControllers().AddApplicationPart(typeof(TestPermissionController).Assembly);
             services.AddScoped<
                 AuthorizationBehavior<TestPermissionCommand, TestPermissionResult>>();
-            services.AddScoped<
-                IAuthorizationFailureResultFactory<TestPermissionResult>,
-                TestPermissionResultFactory>();
             services.AddScoped<
                 ValidationBehavior<TestAuditCommand, TestAuditResult>>();
             services.AddScoped<
                 AuthorizationBehavior<TestAuditCommand, TestAuditResult>>();
             services.AddScoped<AuditBehavior<TestAuditCommand, TestAuditResult>>();
             services.AddScoped<IValidator<TestAuditCommand>, TestAuditCommandValidator>();
-            services.AddScoped<
-                IAuthorizationFailureResultFactory<TestAuditResult>,
-                TestAuditAuthorizationFailureResultFactory>();
         });
     }
 
@@ -266,5 +316,88 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
     {
         await base.DisposeAsync();
         await _sqlServer.DisposeAsync();
+    }
+}
+
+public sealed class RecordingPasswordRecoveryEmailSender : IPasswordRecoveryEmailSender
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<RecordedPasswordRecoveryEmail>
+        _messages = new();
+
+    public IReadOnlyList<RecordedPasswordRecoveryEmail> Messages => [.. _messages];
+
+    public void Clear()
+    {
+        while (_messages.TryDequeue(out _))
+        {
+        }
+    }
+
+    public Task SendAsync(
+        string recipientAddress,
+        string resetUrl,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _messages.Enqueue(new(recipientAddress, resetUrl));
+        return Task.CompletedTask;
+    }
+}
+
+public sealed record RecordedPasswordRecoveryEmail(string RecipientAddress, string ResetUrl);
+
+public sealed class RecordingMfaEmailSender : IMfaEmailSender
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<RecordedMfaEmail> _messages = new();
+
+    public IReadOnlyList<RecordedMfaEmail> Messages => [.. _messages];
+
+    public bool DeliverySucceeds { get; set; } = true;
+
+    public void Clear()
+    {
+        DeliverySucceeds = true;
+        while (_messages.TryDequeue(out _))
+        {
+        }
+    }
+
+    public Task<bool> SendCodeAsync(
+        string recipientAddress,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _messages.Enqueue(new(recipientAddress, code));
+        return Task.FromResult(DeliverySucceeds);
+    }
+}
+
+public sealed record RecordedMfaEmail(string RecipientAddress, string Code);
+
+public sealed class RecordingClientGuestInvitationEmailSender : IClientGuestInvitationEmailSender
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<ClientGuestInvitationEmailMessage>
+        _messages = new();
+
+    public IReadOnlyList<ClientGuestInvitationEmailMessage> Messages => [.. _messages];
+
+    public bool DeliverySucceeds { get; set; } = true;
+
+    public void Clear()
+    {
+        DeliverySucceeds = true;
+        while (_messages.TryDequeue(out _))
+        {
+        }
+    }
+
+    public Task<bool> SendAsync(
+        ClientGuestInvitationEmailMessage message,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _messages.Enqueue(message);
+        return Task.FromResult(DeliverySucceeds);
     }
 }

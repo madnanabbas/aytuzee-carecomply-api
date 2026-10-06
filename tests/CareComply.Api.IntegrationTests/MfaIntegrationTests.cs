@@ -4,6 +4,8 @@ using System.Text.Json;
 using CareComply.Application.Authorization;
 using CareComply.Infrastructure.Identity;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CareComply.Api.IntegrationTests;
 
@@ -13,10 +15,10 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
     private const string ValidPassword = "correct horse battery staple";
 
     [Fact]
-    public async Task RequiredUserEnrollsWithRealIdentityProviderBeforeApplicationSessionExists()
+    public async Task AdministratorRequiredUserEnrollsBeforeApplicationSessionExists()
     {
         var user = await CreateUserAsync();
-        await factory.GrantPermissionAsync(user.Id, Permissions.User.Manage);
+        await ConfigureAuthenticatorMfaAsync(user.Id);
         using var client = factory.CreateSecureClient();
 
         var login = await LoginAsync(client, user.Email!);
@@ -102,7 +104,120 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
     }
 
     [Fact]
-    public async Task NewlyRequiredPermissionInvalidatesPasswordOnlyApplicationSession()
+    public async Task EmailMethodSendsIdentityCodeAndCompletesOnlyAfterVerification()
+    {
+        factory.MfaEmailSender.Clear();
+        var user = await CreateUserAsync();
+        await ConfigureEmailMfaAsync(user.Id);
+        using var client = factory.CreateSecureClient();
+
+        var login = await LoginAsync(client, user.Email!);
+        Assert.Equal(HttpStatusCode.Accepted, login.StatusCode);
+        Assert.DoesNotContain(
+            login.Headers.GetValues("Set-Cookie"),
+            value => value.StartsWith("__Host-CareComply.Auth=", StringComparison.Ordinal));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+
+        var initialEmail = Assert.Single(factory.MfaEmailSender.Messages);
+        Assert.Equal(user.Email, initialEmail.RecipientAddress);
+        Assert.Matches("^[0-9]{6}$", initialEmail.Code);
+        var context = await GetMfaContextAsync(client);
+        Assert.Equal("mfaRequired", context.Status);
+        Assert.Equal("Email", context.Method);
+
+        var invalid = await PostWithCsrfAsync(
+            client,
+            "/api/auth/mfa/verify",
+            new { code = "000000" },
+            context.RequestToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, invalid.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+
+        var resend = await PostWithCsrfAsync(
+            client,
+            "/api/auth/mfa/email/resend",
+            payload: null,
+            context.RequestToken);
+        Assert.Equal(HttpStatusCode.NoContent, resend.StatusCode);
+        var resentEmail = factory.MfaEmailSender.Messages[^1];
+
+        var verified = await PostWithCsrfAsync(
+            client,
+            "/api/auth/mfa/verify",
+            new { code = resentEmail.Code },
+            context.RequestToken);
+        Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task EmailMethodFailsClosedForUnconfirmedEmailOrDeliveryFailure()
+    {
+        factory.MfaEmailSender.Clear();
+        var unconfirmed = await factory.CreateUserAsync(
+            $"mfa-unconfirmed-{Guid.NewGuid():N}@example.test",
+            ValidPassword,
+            emailConfirmed: false);
+        await ConfigureEmailMfaAsync(unconfirmed.Id);
+        using var unconfirmedClient = factory.CreateSecureClient();
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await LoginAsync(unconfirmedClient, unconfirmed.Email!)).StatusCode);
+        Assert.Empty(factory.MfaEmailSender.Messages);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await unconfirmedClient.GetAsync("/api/auth/me")).StatusCode);
+
+        var deliveryFailure = await CreateUserAsync();
+        await ConfigureEmailMfaAsync(deliveryFailure.Id);
+        factory.MfaEmailSender.DeliverySucceeds = false;
+        try
+        {
+            using var failureClient = factory.CreateSecureClient();
+            Assert.Equal(
+                HttpStatusCode.InternalServerError,
+                (await LoginAsync(failureClient, deliveryFailure.Email!)).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await failureClient.GetAsync("/api/auth/me")).StatusCode);
+        }
+        finally
+        {
+            factory.MfaEmailSender.Clear();
+        }
+    }
+
+    [Fact]
+    public async Task EmailResendUsesDedicatedRateLimit()
+    {
+        var user = await CreateUserAsync();
+        await ConfigureEmailMfaAsync(user.Id);
+        using var limitedFactory = factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Authentication:Mfa:EmailResendRateLimitPermitLimit", "2"));
+        using var client = limitedFactory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = true,
+        });
+
+        Assert.Equal(HttpStatusCode.Accepted, (await LoginAsync(client, user.Email!)).StatusCode);
+        var context = await GetMfaContextAsync(client);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await PostWithCsrfAsync(
+                client,
+                "/api/auth/mfa/email/resend",
+                payload: null,
+                context.RequestToken)).StatusCode);
+        }
+
+        var rejected = await PostWithCsrfAsync(
+            client,
+            "/api/auth/mfa/email/resend",
+            payload: null,
+            context.RequestToken);
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+        await AssertProblemTypeAsync(rejected, "urn:carecomply:problem:mfa-rate-limit");
+    }
+
+    [Fact]
+    public async Task NewlyGrantedPermissionDoesNotOverrideAdministratorMfaSetting()
     {
         var user = await CreateUserAsync();
         using var client = factory.CreateSecureClient();
@@ -111,7 +226,7 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
 
         await factory.GrantPermissionAsync(user.Id, Permissions.User.Manage);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
     }
 
     [Fact]
@@ -222,6 +337,30 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
         $"mfa-{Guid.NewGuid():N}@example.test",
         ValidPassword);
 
+    private async Task ConfigureEmailMfaAsync(Guid userId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString())
+            ?? throw new InvalidOperationException("The expected test user does not exist.");
+        user.RequiresMfa = true;
+        user.MfaMethod = CareComply.Application.Abstractions.Identity.UserMfaMethod.Email;
+        user.TwoFactorEnabled = false;
+        Assert.True((await userManager.UpdateAsync(user)).Succeeded);
+    }
+
+    private async Task ConfigureAuthenticatorMfaAsync(Guid userId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByIdAsync(userId.ToString())
+            ?? throw new InvalidOperationException("The expected test user does not exist.");
+        user.RequiresMfa = true;
+        user.MfaMethod = CareComply.Application.Abstractions.Identity.UserMfaMethod.Authenticator;
+        user.TwoFactorEnabled = false;
+        Assert.True((await userManager.UpdateAsync(user)).Succeeded);
+    }
+
     private static Task<HttpResponseMessage> LoginAsync(HttpClient client, string email) =>
         client.PostAsJsonAsync("/api/auth/login", new { email, password = ValidPassword });
 
@@ -258,7 +397,7 @@ public sealed class MfaIntegrationTests(SqlServerApiFactory factory)
         Assert.True(root.TryGetProperty("traceId", out _));
     }
 
-    private sealed record MfaContextBody(string Status, string RequestToken);
+    private sealed record MfaContextBody(string Status, string Method, string RequestToken);
     private sealed record MfaEnrollmentBody(string ManualSetupKey, string QrCodeDataUrl);
     private sealed record MfaEnrollmentConfirmationBody(string[] RecoveryCodes);
 }

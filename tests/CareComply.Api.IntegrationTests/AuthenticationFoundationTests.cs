@@ -60,7 +60,7 @@ public sealed class AuthenticationFoundationTests
         Assert.Equal("__Host-CareComply.Auth", options.Cookie.Name);
         Assert.True(options.Cookie.HttpOnly);
         Assert.Equal(CookieSecurePolicy.Always, options.Cookie.SecurePolicy);
-        Assert.Equal(SameSiteMode.Strict, options.Cookie.SameSite);
+        Assert.Equal(SameSiteMode.None, options.Cookie.SameSite);
         Assert.Equal("/", options.Cookie.Path);
         Assert.Null(options.Cookie.Domain);
         Assert.Equal(TimeSpan.FromMinutes(15), options.ExpireTimeSpan);
@@ -122,7 +122,7 @@ public sealed class AuthenticationFoundationTests
         [
             new MfaCodeRequest { Code = secret },
             new MfaRecoveryCodeRequest { RecoveryCode = secret },
-            new MfaContextResponse("mfaRequired", secret),
+            new MfaContextResponse("mfaRequired", "Authenticator", secret),
             new MfaEnrollmentResponse(secret, secret),
             new MfaEnrollmentConfirmedResponse([secret]),
         ];
@@ -189,7 +189,7 @@ public sealed class AuthenticationFoundationTests
         Assert.Equal(expectedName, options.Cookie.Name);
         Assert.True(options.Cookie.HttpOnly);
         Assert.Equal(CookieSecurePolicy.Always, options.Cookie.SecurePolicy);
-        Assert.Equal(SameSiteMode.Strict, options.Cookie.SameSite);
+        Assert.Equal(SameSiteMode.None, options.Cookie.SameSite);
         Assert.Equal("/", options.Cookie.Path);
         Assert.Null(options.Cookie.Domain);
         Assert.Equal(TimeSpan.FromMinutes(5), options.ExpireTimeSpan);
