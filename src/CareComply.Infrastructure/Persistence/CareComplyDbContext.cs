@@ -30,6 +30,8 @@ public sealed class CareComplyDbContext
     public DbSet<ClientHospitalization> ClientHospitalizations => Set<ClientHospitalization>();
     public DbSet<ClientTodo> ClientTodos => Set<ClientTodo>();
     public DbSet<ClientCaregiver> ClientCaregivers => Set<ClientCaregiver>();
+    public DbSet<ClientServiceAgreement> ClientServiceAgreements => Set<ClientServiceAgreement>();
+    public DbSet<ClientServiceAgreementLine> ClientServiceAgreementLines => Set<ClientServiceAgreementLine>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

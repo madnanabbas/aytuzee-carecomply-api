@@ -356,6 +356,8 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
                     "ClientHospitalizations",
                     "ClientLanguagePreferences",
                     "Clients",
+                    "ClientServiceAgreementLines",
+                    "ClientServiceAgreements",
                     "ClientServices",
                     "ClientTodos",
                     "Companies",
@@ -419,7 +421,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
         foreignKeyCommand.CommandText =
             "SELECT COUNT(*) FROM sys.foreign_keys WHERE schema_id = SCHEMA_ID('dbo')";
         Assert.Equal(
-            42,
+            44,
             Convert.ToInt32(
                 await foreignKeyCommand.ExecuteScalarAsync(),
                 CultureInfo.InvariantCulture));

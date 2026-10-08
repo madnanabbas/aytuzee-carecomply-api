@@ -209,6 +209,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IClientCareCoordinatorStore, EfClientCareCoordinatorStore>();
         services.AddScoped<IClientClinicalContactStore, EfClientClinicalContactStore>();
         services.AddScoped<IClientHospitalizationStore, EfClientHospitalizationStore>();
+        services.AddScoped<IClientServiceAgreementStore, EfClientServiceAgreementStore>();
         services.AddScoped<IClientSensitiveData, DataProtectionClientSensitiveData>();
         services.AddScoped<IClientGuestInvitationCreator, EfClientGuestInvitationCreator>();
         services.AddScoped<IClientGuestInvitationEmailSender, AzureCommunicationClientGuestInvitationEmailSender>();

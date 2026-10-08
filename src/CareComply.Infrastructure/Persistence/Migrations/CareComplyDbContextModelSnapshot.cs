@@ -891,6 +891,160 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientServiceAgreement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AgreementNumber")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("InsuredMemberId")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PayerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PriorAuthorizationNumber")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientServiceAgreements");
+
+                    b.HasIndex("ClientId")
+                        .HasDatabaseName("IX_ClientServiceAgreements_ClientId");
+
+                    b.HasIndex("ClientId", "StartDate")
+                        .HasDatabaseName("IX_ClientServiceAgreements_ClientId_StartDate");
+
+                    b.ToTable("ClientServiceAgreements", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientServiceAgreements_Dates", "[EndDate] IS NULL OR [EndDate] >= [StartDate]");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientServiceAgreementLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("AuthorizedUnits")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ClientServiceAgreementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<string>("IcdCode")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int?>("MinutesPerUnit")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("PlannedHoursPerVisit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("PlannedVisitsPerWeek")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("PrimaryDiagnosisText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal?>("RatePerUnit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("ServiceCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("ServiceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UnitType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientServiceAgreementLines");
+
+                    b.HasIndex("ClientServiceAgreementId")
+                        .HasDatabaseName("IX_ClientServiceAgreementLines_ClientServiceAgreementId");
+
+                    b.HasIndex("ClientServiceAgreementId", "ServiceCode")
+                        .HasDatabaseName("IX_ClientServiceAgreementLines_ClientServiceAgreementId_ServiceCode");
+
+                    b.ToTable("ClientServiceAgreementLines", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientServiceAgreementLines_AuthorizedUnits", "[AuthorizedUnits] IS NULL OR [AuthorizedUnits] >= 0");
+
+                            t.HasCheckConstraint("CK_ClientServiceAgreementLines_MinutesPerUnit", "[MinutesPerUnit] IS NULL OR [MinutesPerUnit] > 0");
+
+                            t.HasCheckConstraint("CK_ClientServiceAgreementLines_PlannedHoursPerVisit", "[PlannedHoursPerVisit] IS NULL OR [PlannedHoursPerVisit] >= 0");
+
+                            t.HasCheckConstraint("CK_ClientServiceAgreementLines_PlannedVisitsPerWeek", "[PlannedVisitsPerWeek] IS NULL OR [PlannedVisitsPerWeek] >= 0");
+
+                            t.HasCheckConstraint("CK_ClientServiceAgreementLines_RatePerUnit", "[RatePerUnit] IS NULL OR [RatePerUnit] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("CareComply.Domain.Clients.ClientTodo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2979,6 +3133,26 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_ClientServices_Clients_ClientId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientServiceAgreement", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientServiceAgreements_Clients_ClientId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientServiceAgreementLine", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.ClientServiceAgreement", null)
+                        .WithMany()
+                        .HasForeignKey("ClientServiceAgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_ClientServiceAgreementLines_ClientServiceAgreements_ClientServiceAgreementId");
                 });
 
             modelBuilder.Entity("CareComply.Domain.Clients.ClientTodo", b =>
