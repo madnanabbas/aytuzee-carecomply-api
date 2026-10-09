@@ -13,7 +13,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-const string StagingCorsPolicy = "StagingFrontend";
+const string FrontendCorsPolicy = "Frontend";
+
+string[] frontendOrigins = builder.Environment.IsProduction()
+    ? ["https://aytuzee.com", "https://www.aytuzee.com"]
+    : ["https://happy-grass-04c144b10.7.azurestaticapps.net"];
 
 builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = context =>
@@ -43,12 +47,11 @@ builder.Services.AddCareComplyAuditing();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(
-        StagingCorsPolicy,
+        FrontendCorsPolicy,
         policy =>
         {
             policy
-                .WithOrigins(
-                    "https://happy-grass-04c144b10.7.azurestaticapps.net")
+                .WithOrigins(frontendOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
@@ -122,9 +125,9 @@ app.UseStaticFiles(new StaticFileOptions
     },
 });
 
-if (app.Environment.IsStaging())
+if (app.Environment.IsStaging() || app.Environment.IsProduction())
 {
-    app.UseCors(StagingCorsPolicy);
+    app.UseCors(FrontendCorsPolicy);
 }
 
 app.UseAuthentication();

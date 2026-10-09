@@ -895,6 +895,7 @@ public sealed class PublicClientIntakeController(
         // Staging hosts the SPA and API on different sites, so only that
         // environment requires SameSite=None. Production is same-site.
         var sameSite = environment.IsStaging() ? SameSiteMode.None : SameSiteMode.Strict;
+        var csrfCookieDomain = environment.IsProduction() ? "aytuzee.com" : null;
         Response.Cookies.Append(SessionCookieName, sessionToken, new CookieOptions
         {
             HttpOnly = true,
@@ -909,6 +910,7 @@ public sealed class PublicClientIntakeController(
             Secure = true,
             SameSite = sameSite,
             Path = "/",
+            Domain = csrfCookieDomain,
             IsEssential = true,
         });
     }
@@ -916,6 +918,10 @@ public sealed class PublicClientIntakeController(
     private void ClearGuestCookies()
     {
         Response.Cookies.Delete(SessionCookieName, new CookieOptions { Path = "/" });
-        Response.Cookies.Delete(CsrfCookieName, new CookieOptions { Path = "/" });
+        Response.Cookies.Delete(CsrfCookieName, new CookieOptions
+        {
+            Path = "/",
+            Domain = environment.IsProduction() ? "aytuzee.com" : null,
+        });
     }
 }
