@@ -83,11 +83,18 @@ public sealed class ClientServiceAgreementIntegrationTests(SqlServerApiFactory f
         using var detailsJson = JsonDocument.Parse(await details.Content.ReadAsStringAsync());
         var root = detailsJson.RootElement;
         Assert.Equal(created.Id, root.GetProperty("id").GetGuid());
+        Assert.True(root.GetProperty("isDummy").GetBoolean());
+        Assert.Equal("High", root.GetProperty("priority").GetString());
         Assert.Equal(2, root.GetProperty("lines").GetArrayLength());
         var calculated = root.GetProperty("lines")[0];
         Assert.Equal(800m, calculated.GetProperty("estimatedBudget").GetDecimal());
         Assert.Equal(6m, calculated.GetProperty("plannedHoursPerWeek").GetDecimal());
         Assert.Equal(24m, calculated.GetProperty("plannedUnitsPerWeek").GetDecimal());
+        Assert.Equal(900m, calculated.GetProperty("authorizedBudgetAmount").GetDecimal());
+        Assert.Equal("2026-01-01", calculated.GetProperty("startDate").GetString());
+        Assert.Equal(2, calculated.GetProperty("diagnoses").GetArrayLength());
+        Assert.Single(calculated.GetProperty("diagnoses").EnumerateArray(), diagnosis =>
+            diagnosis.GetProperty("isPrimary").GetBoolean());
         Assert.False(calculated.TryGetProperty("usedUnits", out _));
         Assert.False(calculated.TryGetProperty("remainingUnits", out _));
         Assert.False(calculated.TryGetProperty("usedValue", out _));
@@ -138,6 +145,13 @@ public sealed class ClientServiceAgreementIntegrationTests(SqlServerApiFactory f
                     ratePerUnit = (decimal?)-1,
                     plannedHoursPerVisit = (decimal?)-1,
                     plannedVisitsPerWeek = (decimal?)-1,
+                    startDate = default(DateOnly),
+                    authorizedBudgetAmount = (decimal?)-1,
+                    diagnoses = new[]
+                    {
+                        new { diagnosisText = "One", icdCode = "A", isPrimary = true },
+                        new { diagnosisText = "Two", icdCode = "B", isPrimary = true },
+                    },
                 },
             ]));
 
@@ -236,12 +250,169 @@ public sealed class ClientServiceAgreementIntegrationTests(SqlServerApiFactory f
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ActiveSameServiceOverlapReturnsStructuredWarningAndCreateStillSucceeds()
+    {
+        var setup = await CreateAuthorizedContextAsync(AllPermissions);
+        var first = await setup.HttpClient.PostAsJsonAsync(
+            Route(setup.ClientId),
+            OverlapCreateRequest("OVERLAP-A", "T-OVERLAP", new(2026, 1, 1), new(2026, 1, 31)));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        using (var firstJson = JsonDocument.Parse(await first.Content.ReadAsStringAsync()))
+            Assert.Empty(firstJson.RootElement.GetProperty("warnings").EnumerateArray());
+
+        var overlapping = await setup.HttpClient.PostAsJsonAsync(
+            Route(setup.ClientId),
+            OverlapCreateRequest("OVERLAP-B", "T-OVERLAP", new(2026, 1, 15), new(2026, 2, 15)));
+
+        Assert.Equal(HttpStatusCode.Created, overlapping.StatusCode);
+        using var json = JsonDocument.Parse(await overlapping.Content.ReadAsStringAsync());
+        var warning = Assert.Single(json.RootElement.GetProperty("warnings").EnumerateArray());
+        Assert.Equal("SERVICE_LINE_OVERLAP", warning.GetProperty("code").GetString());
+        Assert.Equal("T-OVERLAP", warning.GetProperty("serviceCode").GetString());
+        Assert.Equal("2026-01-15", warning.GetProperty("overlapStartDate").GetString());
+        Assert.Equal("2026-01-31", warning.GetProperty("overlapEndDate").GetString());
+    }
+
+    [Fact]
+    public async Task OverlapUsesInclusiveOpenEndedDatesAndOnlySameServiceActiveAgreements()
+    {
+        var setup = await CreateAuthorizedContextAsync(AllPermissions);
+
+        await AssertCreateWarningCountAsync(setup, "ADJ-A", "T-ADJ", new(2026, 1, 1), new(2026, 1, 31), 0);
+        await AssertCreateWarningCountAsync(setup, "ADJ-B", "T-ADJ", new(2026, 2, 1), new(2026, 2, 28), 0);
+
+        await AssertCreateWarningCountAsync(setup, "BOUND-A", "T-BOUND", new(2026, 1, 1), new(2026, 1, 31), 0);
+        await AssertCreateWarningCountAsync(setup, "BOUND-B", "T-BOUND", new(2026, 1, 31), new(2026, 2, 28), 1);
+
+        await AssertCreateWarningCountAsync(setup, "OPEN-A", "T-OPEN", new(2026, 1, 1), null, 0);
+        await AssertCreateWarningCountAsync(setup, "OPEN-B", "T-OPEN", new(2026, 2, 1), new(2026, 2, 28), 1);
+
+        await AssertCreateWarningCountAsync(setup, "DIFF-A", "T-DIFFERENT-A", new(2026, 1, 1), new(2026, 1, 31), 0);
+        await AssertCreateWarningCountAsync(setup, "DIFF-B", "T-DIFFERENT-B", new(2026, 1, 1), new(2026, 1, 31), 0);
+
+        await AssertCreateWarningCountAsync(setup, "EXPIRED", "T-EXPIRED", new(2026, 1, 1), new(2026, 1, 31), 0, "Expired");
+        await AssertCreateWarningCountAsync(setup, "EXPIRED-ACTIVE", "T-EXPIRED", new(2026, 1, 1), new(2026, 1, 31), 0);
+
+        await AssertCreateWarningCountAsync(setup, "DRAFT", "T-DRAFT", new(2026, 1, 1), new(2026, 1, 31), 0, "Draft");
+        await AssertCreateWarningCountAsync(setup, "DRAFT-ACTIVE", "T-DRAFT", new(2026, 1, 1), new(2026, 1, 31), 0);
+    }
+
+    [Fact]
+    public async Task UpdateExcludesItselfAndStillSucceedsWhenItIntroducesOverlap()
+    {
+        var setup = await CreateAuthorizedContextAsync(AllPermissions);
+        await AssertCreateWarningCountAsync(setup, "UPDATE-A", "T-UPDATE", new(2026, 1, 1), new(2026, 1, 31), 0);
+        var editable = await CreateAgreementWithDatesAsync(
+            setup,
+            "UPDATE-B",
+            "T-UPDATE",
+            new(2026, 2, 1),
+            new(2026, 2, 28));
+
+        var unchanged = await setup.HttpClient.GetAsync($"{Route(setup.ClientId)}/{editable.Id}");
+        using (var unchangedJson = JsonDocument.Parse(await unchanged.Content.ReadAsStringAsync()))
+            Assert.Empty(unchangedJson.RootElement.GetProperty("warnings").EnumerateArray());
+
+        var update = await setup.HttpClient.PutAsJsonAsync(
+            $"{Route(setup.ClientId)}/{editable.Id}",
+            OverlapUpdateRequest(
+                editable.EditorVersion,
+                editable.LineIds[0],
+                "UPDATE-B",
+                "T-UPDATE",
+                new(2026, 1, 31),
+                new(2026, 2, 28)));
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        using var json = JsonDocument.Parse(await update.Content.ReadAsStringAsync());
+        Assert.Single(json.RootElement.GetProperty("warnings").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task OverlapIgnoresOtherClientsAndOtherCompaniesWithoutLeakingThem()
+    {
+        var setup = await CreateAuthorizedContextAsync(AllPermissions);
+        var otherClientId = await CreateClientAsync(SqlServerApiFactory.DefaultCompanyId, setup.LocationId);
+        var otherClientAgreement = await setup.HttpClient.PostAsJsonAsync(
+            Route(otherClientId),
+            OverlapCreateRequest("OTHER-CLIENT", "T-ISOLATED", new(2026, 1, 1), null));
+        Assert.Equal(HttpStatusCode.Created, otherClientAgreement.StatusCode);
+        await AssertCreateWarningCountAsync(setup, "CURRENT", "T-ISOLATED", new(2026, 2, 1), null, 0);
+
+        var otherCompany = await CreateCompanyAsync();
+        var otherCompanyClientId = await CreateClientAsync(otherCompany.CompanyId, otherCompany.LocationId);
+        await InsertAgreementAsync(otherCompanyClientId, "T-TENANT", new(2026, 1, 1), null);
+        await AssertCreateWarningCountAsync(setup, "TENANT", "T-TENANT", new(2026, 2, 1), null, 0);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await setup.HttpClient.GetAsync(Route(otherCompanyClientId))).StatusCode);
+    }
+
     private static readonly string[] AllPermissions =
     [
         Permissions.ClientServiceAgreement.View,
         Permissions.ClientServiceAgreement.Create,
         Permissions.ClientServiceAgreement.Edit,
     ];
+
+    private static async Task AssertCreateWarningCountAsync(
+        AuthorizedContext setup,
+        string agreementNumber,
+        string serviceCode,
+        DateOnly startDate,
+        DateOnly? endDate,
+        int expectedCount,
+        string status = "Active")
+    {
+        var response = await setup.HttpClient.PostAsJsonAsync(
+            Route(setup.ClientId),
+            OverlapCreateRequest(agreementNumber, serviceCode, startDate, endDate, status));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(expectedCount, json.RootElement.GetProperty("warnings").GetArrayLength());
+    }
+
+    private static async Task<CreatedAgreement> CreateAgreementWithDatesAsync(
+        AuthorizedContext setup,
+        string agreementNumber,
+        string serviceCode,
+        DateOnly startDate,
+        DateOnly? endDate)
+    {
+        var response = await setup.HttpClient.PostAsJsonAsync(
+            Route(setup.ClientId),
+            OverlapCreateRequest(agreementNumber, serviceCode, startDate, endDate));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return new(
+            json.RootElement.GetProperty("id").GetGuid(),
+            json.RootElement.GetProperty("editorVersion").GetString()!,
+            json.RootElement.GetProperty("lines").EnumerateArray()
+                .Select(line => line.GetProperty("id").GetGuid()).ToArray());
+    }
+
+    private async Task InsertAgreementAsync(
+        Guid clientId,
+        string serviceCode,
+        DateOnly startDate,
+        DateOnly? endDate)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var agreement = ClientServiceAgreement.Create(
+            Guid.CreateVersion7(), clientId, "OTHER-TENANT", "Payer", null, null,
+            startDate, endDate, ClientServiceAgreementStatus.Active,
+            ClientServiceAgreementPriority.Normal, false, null, now);
+        var line = ClientServiceAgreementLine.Create(
+            Guid.CreateVersion7(), agreement.Id, serviceCode, "Other tenant service",
+            ClientServiceAgreementUnitType.Hour, 60, 1, 1, startDate, endDate,
+            null, null, null, null, null, now);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+        db.ClientServiceAgreements.Add(agreement);
+        db.ClientServiceAgreementLines.Add(line);
+        await db.SaveChangesAsync();
+    }
 
     private async Task<AuthorizedContext> CreateAuthorizedContextAsync(params string[] permissions)
     {
@@ -386,8 +557,75 @@ public sealed class ClientServiceAgreementIntegrationTests(SqlServerApiFactory f
             startDate = startDate ?? new DateOnly(2026, 1, 1),
             endDate,
             status = "Active",
+            priority = "High",
+            isDummy = true,
             notes = "NOTES-SENSITIVE",
             lines = lines ?? [Line()],
+        };
+
+    private static object OverlapCreateRequest(
+        string agreementNumber,
+        string serviceCode,
+        DateOnly startDate,
+        DateOnly? endDate,
+        string status = "Active") => new
+        {
+            agreementNumber,
+            payerName = "Payer",
+            insuredMemberId = (string?)null,
+            priorAuthorizationNumber = (string?)null,
+            startDate,
+            endDate,
+            status,
+            priority = "Normal",
+            isDummy = false,
+            notes = (string?)null,
+            lines = new[] { OverlapLine(null, serviceCode, startDate, endDate) },
+        };
+
+    private static object OverlapUpdateRequest(
+        string editorVersion,
+        Guid lineId,
+        string agreementNumber,
+        string serviceCode,
+        DateOnly startDate,
+        DateOnly? endDate) => new
+        {
+            agreementNumber,
+            payerName = "Payer",
+            insuredMemberId = (string?)null,
+            priorAuthorizationNumber = (string?)null,
+            startDate,
+            endDate,
+            status = "Active",
+            priority = "Normal",
+            isDummy = false,
+            notes = (string?)null,
+            editorVersion,
+            lines = new[] { OverlapLine(lineId, serviceCode, startDate, endDate) },
+        };
+
+    private static object OverlapLine(
+        Guid? id,
+        string serviceCode,
+        DateOnly startDate,
+        DateOnly? endDate) => new
+        {
+            id,
+            serviceCode,
+            serviceName = "Overlap test service",
+            unitType = "Hour",
+            minutesPerUnit = 60,
+            authorizedUnits = (decimal?)1,
+            ratePerUnit = (decimal?)1,
+            startDate,
+            endDate,
+            rateEffectiveFrom = (DateOnly?)null,
+            rateEffectiveTo = (DateOnly?)null,
+            authorizedBudgetAmount = (decimal?)null,
+            plannedHoursPerVisit = (decimal?)null,
+            plannedVisitsPerWeek = (decimal?)null,
+            diagnoses = Array.Empty<object>(),
         };
 
     private static object ValidUpdateRequest(
@@ -402,6 +640,8 @@ public sealed class ClientServiceAgreementIntegrationTests(SqlServerApiFactory f
             startDate = new DateOnly(2026, 1, 1),
             endDate = (DateOnly?)null,
             status = "Active",
+            priority = "Urgent",
+            isDummy = false,
             notes = "NOTES-SENSITIVE",
             editorVersion,
             lines,
@@ -415,14 +655,22 @@ public sealed class ClientServiceAgreementIntegrationTests(SqlServerApiFactory f
             id,
             serviceCode,
             serviceName,
-            unitType = "15 minutes",
+            unitType = "FifteenMinutes",
             minutesPerUnit = 15,
             authorizedUnits = 100m,
             ratePerUnit = 8m,
+            startDate = new DateOnly(2026, 1, 1),
+            endDate = (DateOnly?)null,
+            rateEffectiveFrom = new DateOnly(2026, 1, 1),
+            rateEffectiveTo = new DateOnly(2026, 12, 31),
+            authorizedBudgetAmount = 900m,
             plannedHoursPerVisit = 2m,
             plannedVisitsPerWeek = 3m,
-            primaryDiagnosisText = "DIAGNOSIS-SENSITIVE",
-            icdCode = "ICD-SENSITIVE",
+            diagnoses = new[]
+            {
+                new { diagnosisText = "DIAGNOSIS-SENSITIVE", icdCode = "ICD-SENSITIVE", isPrimary = true },
+                new { diagnosisText = "ADDITIONAL-SENSITIVE", icdCode = "ICD-ADDITIONAL", isPrimary = false },
+            },
         };
 
     private static string Route(Guid clientId) =>

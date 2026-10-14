@@ -4,9 +4,6 @@ public sealed class ClientServiceAgreementLine
 {
     public const int MaximumServiceCodeLength = 50;
     public const int MaximumServiceNameLength = 200;
-    public const int MaximumUnitTypeLength = 50;
-    public const int MaximumDiagnosisTextLength = 1000;
-    public const int MaximumIcdCodeLength = 20;
 
     private ClientServiceAgreementLine()
     {
@@ -16,14 +13,17 @@ public sealed class ClientServiceAgreementLine
     public Guid ClientServiceAgreementId { get; private set; }
     public string ServiceCode { get; private set; } = string.Empty;
     public string ServiceName { get; private set; } = string.Empty;
-    public string? UnitType { get; private set; }
+    public ClientServiceAgreementUnitType? UnitType { get; private set; }
     public int? MinutesPerUnit { get; private set; }
     public decimal? AuthorizedUnits { get; private set; }
     public decimal? RatePerUnit { get; private set; }
+    public DateOnly StartDate { get; private set; }
+    public DateOnly? EndDate { get; private set; }
+    public DateOnly? RateEffectiveFrom { get; private set; }
+    public DateOnly? RateEffectiveTo { get; private set; }
+    public decimal? AuthorizedBudgetAmount { get; private set; }
     public decimal? PlannedHoursPerVisit { get; private set; }
     public decimal? PlannedVisitsPerWeek { get; private set; }
-    public string? PrimaryDiagnosisText { get; private set; }
-    public string? IcdCode { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
@@ -33,14 +33,17 @@ public sealed class ClientServiceAgreementLine
         Guid clientServiceAgreementId,
         string serviceCode,
         string serviceName,
-        string? unitType,
+        ClientServiceAgreementUnitType? unitType,
         int? minutesPerUnit,
         decimal? authorizedUnits,
         decimal? ratePerUnit,
+        DateOnly startDate,
+        DateOnly? endDate,
+        DateOnly? rateEffectiveFrom,
+        DateOnly? rateEffectiveTo,
+        decimal? authorizedBudgetAmount,
         decimal? plannedHoursPerVisit,
         decimal? plannedVisitsPerWeek,
-        string? primaryDiagnosisText,
-        string? icdCode,
         DateTimeOffset createdAtUtc)
     {
         if (id == Guid.Empty)
@@ -62,8 +65,13 @@ public sealed class ClientServiceAgreementLine
                 "Minutes per unit must be greater than zero when supplied.");
         }
 
+        EnsureDefined(unitType, nameof(unitType));
+        EnsureDateRange(startDate, endDate, nameof(endDate));
+        EnsureOptionalDateRange(rateEffectiveFrom, rateEffectiveTo, nameof(rateEffectiveTo));
+
         EnsureNotNegative(authorizedUnits, nameof(authorizedUnits));
         EnsureNotNegative(ratePerUnit, nameof(ratePerUnit));
+        EnsureNotNegative(authorizedBudgetAmount, nameof(authorizedBudgetAmount));
         EnsureNotNegative(plannedHoursPerVisit, nameof(plannedHoursPerVisit));
         EnsureNotNegative(plannedVisitsPerWeek, nameof(plannedVisitsPerWeek));
 
@@ -81,17 +89,17 @@ public sealed class ClientServiceAgreementLine
                 serviceName,
                 MaximumServiceNameLength,
                 nameof(serviceName)),
-            UnitType = NormalizeOptional(unitType, MaximumUnitTypeLength, nameof(unitType)),
+            UnitType = unitType,
             MinutesPerUnit = minutesPerUnit,
             AuthorizedUnits = authorizedUnits,
             RatePerUnit = ratePerUnit,
+            StartDate = startDate,
+            EndDate = endDate,
+            RateEffectiveFrom = rateEffectiveFrom,
+            RateEffectiveTo = rateEffectiveTo,
+            AuthorizedBudgetAmount = authorizedBudgetAmount,
             PlannedHoursPerVisit = plannedHoursPerVisit,
             PlannedVisitsPerWeek = plannedVisitsPerWeek,
-            PrimaryDiagnosisText = NormalizeOptional(
-                primaryDiagnosisText,
-                MaximumDiagnosisTextLength,
-                nameof(primaryDiagnosisText)),
-            IcdCode = NormalizeOptional(icdCode, MaximumIcdCodeLength, nameof(icdCode)),
             CreatedAtUtc = timestamp,
             UpdatedAtUtc = timestamp,
         };
@@ -100,14 +108,17 @@ public sealed class ClientServiceAgreementLine
     public void Update(
         string serviceCode,
         string serviceName,
-        string? unitType,
+        ClientServiceAgreementUnitType? unitType,
         int? minutesPerUnit,
         decimal? authorizedUnits,
         decimal? ratePerUnit,
+        DateOnly startDate,
+        DateOnly? endDate,
+        DateOnly? rateEffectiveFrom,
+        DateOnly? rateEffectiveTo,
+        decimal? authorizedBudgetAmount,
         decimal? plannedHoursPerVisit,
         decimal? plannedVisitsPerWeek,
-        string? primaryDiagnosisText,
-        string? icdCode,
         DateTimeOffset updatedAtUtc)
     {
         if (minutesPerUnit is <= 0)
@@ -117,24 +128,29 @@ public sealed class ClientServiceAgreementLine
                 "Minutes per unit must be greater than zero when supplied.");
         }
 
+        EnsureDefined(unitType, nameof(unitType));
+        EnsureDateRange(startDate, endDate, nameof(endDate));
+        EnsureOptionalDateRange(rateEffectiveFrom, rateEffectiveTo, nameof(rateEffectiveTo));
+
         EnsureNotNegative(authorizedUnits, nameof(authorizedUnits));
         EnsureNotNegative(ratePerUnit, nameof(ratePerUnit));
+        EnsureNotNegative(authorizedBudgetAmount, nameof(authorizedBudgetAmount));
         EnsureNotNegative(plannedHoursPerVisit, nameof(plannedHoursPerVisit));
         EnsureNotNegative(plannedVisitsPerWeek, nameof(plannedVisitsPerWeek));
 
         ServiceCode = NormalizeRequired(serviceCode, MaximumServiceCodeLength, nameof(serviceCode));
         ServiceName = NormalizeRequired(serviceName, MaximumServiceNameLength, nameof(serviceName));
-        UnitType = NormalizeOptional(unitType, MaximumUnitTypeLength, nameof(unitType));
+        UnitType = unitType;
         MinutesPerUnit = minutesPerUnit;
         AuthorizedUnits = authorizedUnits;
         RatePerUnit = ratePerUnit;
+        StartDate = startDate;
+        EndDate = endDate;
+        RateEffectiveFrom = rateEffectiveFrom;
+        RateEffectiveTo = rateEffectiveTo;
+        AuthorizedBudgetAmount = authorizedBudgetAmount;
         PlannedHoursPerVisit = plannedHoursPerVisit;
         PlannedVisitsPerWeek = plannedVisitsPerWeek;
-        PrimaryDiagnosisText = NormalizeOptional(
-            primaryDiagnosisText,
-            MaximumDiagnosisTextLength,
-            nameof(primaryDiagnosisText));
-        IcdCode = NormalizeOptional(icdCode, MaximumIcdCodeLength, nameof(icdCode));
         UpdatedAtUtc = EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
     }
 
@@ -143,6 +159,41 @@ public sealed class ClientServiceAgreementLine
         if (value < 0)
         {
             throw new ArgumentOutOfRangeException(parameterName, "Value cannot be negative.");
+        }
+    }
+
+    private static void EnsureDefined<TEnum>(TEnum? value, string parameterName)
+        where TEnum : struct, Enum
+    {
+        if (value.HasValue && !Enum.IsDefined(value.Value))
+        {
+            throw new ArgumentOutOfRangeException(parameterName);
+        }
+    }
+
+    private static void EnsureDateRange(DateOnly startDate, DateOnly? endDate, string parameterName)
+    {
+        if (startDate == default)
+        {
+            throw new ArgumentOutOfRangeException(nameof(startDate), "A start date is required.");
+        }
+
+        if (endDate.HasValue && endDate.Value < startDate)
+        {
+            throw new ArgumentException("End date cannot be before start date.", parameterName);
+        }
+    }
+
+    private static void EnsureOptionalDateRange(
+        DateOnly? startDate,
+        DateOnly? endDate,
+        string parameterName)
+    {
+        if (startDate.HasValue && endDate.HasValue && endDate.Value < startDate.Value)
+        {
+            throw new ArgumentException(
+                "Rate effective end date cannot be before its start date.",
+                parameterName);
         }
     }
 

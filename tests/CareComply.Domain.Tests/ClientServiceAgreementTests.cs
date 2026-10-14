@@ -19,7 +19,9 @@ public sealed class ClientServiceAgreementTests
             " PRIOR-1 ",
             new DateOnly(2026, 10, 1),
             new DateOnly(2026, 12, 31),
-            " Pending review ",
+            ClientServiceAgreementStatus.PendingAuthorization,
+            ClientServiceAgreementPriority.High,
+            true,
             " Notes ",
             Now);
 
@@ -27,7 +29,9 @@ public sealed class ClientServiceAgreementTests
         Assert.Equal("Payer", agreement.PayerName);
         Assert.Equal("MEMBER-1", agreement.InsuredMemberId);
         Assert.Equal("PRIOR-1", agreement.PriorAuthorizationNumber);
-        Assert.Equal("Pending review", agreement.Status);
+        Assert.Equal(ClientServiceAgreementStatus.PendingAuthorization, agreement.Status);
+        Assert.Equal(ClientServiceAgreementPriority.High, agreement.Priority);
+        Assert.True(agreement.IsDummy);
         Assert.Equal("Notes", agreement.Notes);
         Assert.Equal(Now, agreement.CreatedAtUtc);
         Assert.Equal(Now, agreement.UpdatedAtUtc);
@@ -46,6 +50,8 @@ public sealed class ClientServiceAgreementTests
             new DateOnly(2026, 10, 2),
             new DateOnly(2026, 10, 1),
             null,
+            null,
+            false,
             null,
             Now));
     }
@@ -116,21 +122,56 @@ public sealed class ClientServiceAgreementTests
     }
 
     [Fact]
+    public void RejectsInvalidLineAndRateDateRangesAndNegativeAuthorizedBudget()
+    {
+        Assert.Throws<ArgumentException>(() => ClientServiceAgreementLine.Create(
+            Guid.NewGuid(), Guid.NewGuid(), "T1019", "Service",
+            ClientServiceAgreementUnitType.Hour, 60, 1, 1,
+            new DateOnly(2026, 2, 2), new DateOnly(2026, 2, 1), null, null, null, null, null, Now));
+        Assert.Throws<ArgumentException>(() => ClientServiceAgreementLine.Create(
+            Guid.NewGuid(), Guid.NewGuid(), "T1019", "Service",
+            ClientServiceAgreementUnitType.Hour, 60, 1, 1,
+            new DateOnly(2026, 1, 1), null,
+            new DateOnly(2026, 2, 2), new DateOnly(2026, 2, 1), null, null, null, Now));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ClientServiceAgreementLine.Create(
+            Guid.NewGuid(), Guid.NewGuid(), "T1019", "Service",
+            ClientServiceAgreementUnitType.Hour, 60, 1, 1,
+            new DateOnly(2026, 1, 1), null, null, null, -1, null, null, Now));
+    }
+
+    [Fact]
+    public void DiagnosisSupportsPrimaryAndAdditionalValues()
+    {
+        var lineId = Guid.NewGuid();
+        var primary = ClientServiceAgreementLineDiagnosis.Create(
+            Guid.NewGuid(), lineId, " Primary diagnosis ", " Z00.00 ", true, Now);
+        var additional = ClientServiceAgreementLineDiagnosis.Create(
+            Guid.NewGuid(), lineId, " Additional diagnosis ", null, false, Now);
+
+        Assert.True(primary.IsPrimary);
+        Assert.Equal("Primary diagnosis", primary.DiagnosisText);
+        Assert.Equal("Z00.00", primary.IcdCode);
+        Assert.False(additional.IsPrimary);
+    }
+
+    [Fact]
     public void UpdatesAgreementAndLineWithoutChangingOwnership()
     {
         var clientId = Guid.NewGuid();
         var agreement = ClientServiceAgreement.Create(
             Guid.NewGuid(), clientId, null, null, null, null,
-            new DateOnly(2026, 10, 1), null, null, null, Now);
+            new DateOnly(2026, 10, 1), null, null, null, false, null, Now);
         var line = CreateLine(agreement.Id);
         var updatedAt = Now.AddHours(1);
 
         agreement.Update(
             "AUTH-UPDATED", "Payer", "Member", "Prior",
-            new DateOnly(2026, 11, 1), new DateOnly(2027, 1, 31), "Active", "Updated", updatedAt);
+            new DateOnly(2026, 11, 1), new DateOnly(2027, 1, 31),
+            ClientServiceAgreementStatus.Active, ClientServiceAgreementPriority.Urgent,
+            false, "Updated", updatedAt);
         line.Update(
-            "S5125", "Updated service", "Hour", 60, 25m, 12m, 4m, 2m,
-            "Diagnosis", "Z00.00", updatedAt);
+            "S5125", "Updated service", ClientServiceAgreementUnitType.Hour, 60, 25m, 12m,
+            new DateOnly(2026, 11, 1), null, null, null, 300m, 4m, 2m, updatedAt);
 
         Assert.Equal(clientId, agreement.ClientId);
         Assert.Equal("AUTH-UPDATED", agreement.AgreementNumber);
@@ -154,13 +195,16 @@ public sealed class ClientServiceAgreementTests
             agreementId,
             serviceCode,
             serviceName,
-            "15 minutes",
+            ClientServiceAgreementUnitType.FifteenMinutes,
             minutesPerUnit,
             authorizedUnits,
             ratePerUnit,
+            new DateOnly(2026, 10, 1),
+            null,
+            null,
+            null,
+            800m,
             plannedHoursPerVisit,
             plannedVisitsPerWeek,
-            null,
-            null,
             Now);
 }

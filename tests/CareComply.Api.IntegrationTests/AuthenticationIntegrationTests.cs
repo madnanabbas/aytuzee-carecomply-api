@@ -351,11 +351,13 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
                     "ClientAdditionalProfiles",
                     "ClientCaregivers",
                     "ClientContacts",
+                    "ClientCoverages",
                     "ClientGuestInvitations",
                     "ClientGuestSessions",
                     "ClientHospitalizations",
                     "ClientLanguagePreferences",
                     "Clients",
+                    "ClientServiceAgreementLineDiagnoses",
                     "ClientServiceAgreementLines",
                     "ClientServiceAgreements",
                     "ClientServices",
@@ -365,6 +367,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
                     "NavigationFeaturePermissions",
                     "NavigationFeatures",
                     "NavigationModules",
+                    "Payers",
                     "Permissions",
                     "RoleClaims",
                     "RolePermissionFeatureLinks",
@@ -395,18 +398,21 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
         Assert.Equal(
             [
                 "UX_ClientContacts_Client_Type_Primary",
+                "UX_ClientCoverages_OnePrimaryPerClient",
                 "UX_ClientGuestInvitations_CreatedClientId",
                 "UX_ClientGuestInvitations_TokenHash",
                 "UX_ClientGuestSessions_InvitationId",
                 "UX_ClientGuestSessions_SessionTokenHash",
                 "UX_ClientLanguagePreferences_Primary",
                 "UX_Clients_PmiNumber",
+                "UX_ClientServiceAgreementLineDiagnoses_OnePrimaryPerLine",
                 "UX_ClientServices_Client_Code_Active",
                 "UX_ClientServices_Client_Code_StartDate",
                 "UX_Companies_Code",
                 "UX_NavigationFeatures_Key",
                 "UX_NavigationFeatures_Route",
                 "UX_NavigationModules_Key",
+                "UX_Payers_CompanyId_Name",
                 "UX_Permissions_Name",
                 "UX_RolePermissionFeatureLinks_PermissionId",
                 "UX_Roles_NormalizedName",
@@ -415,13 +421,11 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
             ],
             uniqueIndexes);
 
-        
-
         await using var foreignKeyCommand = connection.CreateCommand();
         foreignKeyCommand.CommandText =
             "SELECT COUNT(*) FROM sys.foreign_keys WHERE schema_id = SCHEMA_ID('dbo')";
         Assert.Equal(
-            44,
+            50,
             Convert.ToInt32(
                 await foreignKeyCommand.ExecuteScalarAsync(),
                 CultureInfo.InvariantCulture));

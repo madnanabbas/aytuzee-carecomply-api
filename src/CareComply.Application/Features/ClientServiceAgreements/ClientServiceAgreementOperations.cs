@@ -22,6 +22,8 @@ public sealed record GetClientServiceAgreementQuery(Guid ClientId, Guid Agreemen
 
 public sealed record CreateClientServiceAgreementCommand(
     Guid ClientId,
+    Guid? PayerId,
+    Guid? ClientCoverageId,
     string? AgreementNumber,
     string? PayerName,
     string? InsuredMemberId,
@@ -29,11 +31,20 @@ public sealed record CreateClientServiceAgreementCommand(
     DateOnly StartDate,
     DateOnly? EndDate,
     string? Status,
+    string? Priority,
+    bool IsDummy,
     string? Notes,
     IReadOnlyList<ClientServiceAgreementLineInput>? Lines)
     : ICommand<ClientServiceAgreementResult>, IRequirePermission,
     IAuditableRequest<ClientServiceAgreementResult>
 {
+    public CreateClientServiceAgreementCommand(Guid clientId, string? agreementNumber,
+        string? payerName, string? insuredMemberId, string? priorAuthorizationNumber,
+        DateOnly startDate, DateOnly? endDate, string? status, string? priority, bool isDummy,
+        string? notes, IReadOnlyList<ClientServiceAgreementLineInput>? lines)
+        : this(clientId, null, null, agreementNumber, payerName, insuredMemberId,
+            priorAuthorizationNumber, startDate, endDate, status, priority, isDummy, notes,
+            lines) { }
     public string RequiredPermission => Permissions.ClientServiceAgreement.Create;
 
     public AuditEvent CreateAuditEvent(ClientServiceAgreementResult response) =>
@@ -48,6 +59,8 @@ public sealed record CreateClientServiceAgreementCommand(
 public sealed record UpdateClientServiceAgreementCommand(
     Guid ClientId,
     Guid AgreementId,
+    Guid? PayerId,
+    Guid? ClientCoverageId,
     string? AgreementNumber,
     string? PayerName,
     string? InsuredMemberId,
@@ -55,12 +68,22 @@ public sealed record UpdateClientServiceAgreementCommand(
     DateOnly StartDate,
     DateOnly? EndDate,
     string? Status,
+    string? Priority,
+    bool IsDummy,
     string? Notes,
     string? EditorVersion,
     IReadOnlyList<ClientServiceAgreementLineInput>? Lines)
     : ICommand<ClientServiceAgreementResult>, IRequirePermission,
     IAuditableRequest<ClientServiceAgreementResult>
 {
+    public UpdateClientServiceAgreementCommand(Guid clientId, Guid agreementId,
+        string? agreementNumber, string? payerName, string? insuredMemberId,
+        string? priorAuthorizationNumber, DateOnly startDate, DateOnly? endDate,
+        string? status, string? priority, bool isDummy, string? notes, string? editorVersion,
+        IReadOnlyList<ClientServiceAgreementLineInput>? lines)
+        : this(clientId, agreementId, null, null, agreementNumber, payerName,
+            insuredMemberId, priorAuthorizationNumber, startDate, endDate, status, priority,
+            isDummy, notes, editorVersion, lines) { }
     public string RequiredPermission => Permissions.ClientServiceAgreement.Edit;
 
     public AuditEvent CreateAuditEvent(ClientServiceAgreementResult response) =>
@@ -80,10 +103,20 @@ public sealed record ClientServiceAgreementLineInput(
     int? MinutesPerUnit,
     decimal? AuthorizedUnits,
     decimal? RatePerUnit,
+    DateOnly StartDate,
+    DateOnly? EndDate,
+    DateOnly? RateEffectiveFrom,
+    DateOnly? RateEffectiveTo,
+    decimal? AuthorizedBudgetAmount,
     decimal? PlannedHoursPerVisit,
     decimal? PlannedVisitsPerWeek,
-    string? PrimaryDiagnosisText,
-    string? IcdCode);
+    IReadOnlyList<ClientServiceAgreementLineDiagnosisInput>? Diagnoses);
+
+public sealed record ClientServiceAgreementLineDiagnosisInput(
+    Guid? Id,
+    string? DiagnosisText,
+    string? IcdCode,
+    bool IsPrimary);
 
 public sealed record ClientServiceAgreementResult(
     IReadOnlyList<ClientServiceAgreementItem>? Items,
@@ -142,13 +175,17 @@ public sealed class CreateClientServiceAgreementHandler(
             await store.CreateAsync(
                 new(
                     command.ClientId,
+                    command.PayerId,
+                    command.ClientCoverageId,
                     command.AgreementNumber,
                     command.PayerName,
                     command.InsuredMemberId,
                     command.PriorAuthorizationNumber,
                     command.StartDate,
                     command.EndDate,
-                    command.Status,
+                    ParseOptional<ClientServiceAgreementStatus>(command.Status),
+                    ParseOptional<ClientServiceAgreementPriority>(command.Priority),
+                    command.IsDummy,
                     command.Notes,
                     command.Lines!.Select(Map).ToArray(),
                     timeProvider.GetUtcNow()),
@@ -158,14 +195,29 @@ public sealed class CreateClientServiceAgreementHandler(
         null,
         line.ServiceCode!,
         line.ServiceName!,
-        line.UnitType,
+        ParseOptional<ClientServiceAgreementUnitType>(line.UnitType),
         line.MinutesPerUnit,
         line.AuthorizedUnits,
         line.RatePerUnit,
+        line.StartDate,
+        line.EndDate,
+        line.RateEffectiveFrom,
+        line.RateEffectiveTo,
+        line.AuthorizedBudgetAmount,
         line.PlannedHoursPerVisit,
         line.PlannedVisitsPerWeek,
-        line.PrimaryDiagnosisText,
-        line.IcdCode);
+        line.Diagnoses!.Select(Map).ToArray());
+
+    private static SaveClientServiceAgreementLineDiagnosis Map(
+        ClientServiceAgreementLineDiagnosisInput diagnosis) => new(
+        null,
+        diagnosis.DiagnosisText,
+        diagnosis.IcdCode,
+        diagnosis.IsPrimary);
+
+    private static TEnum? ParseOptional<TEnum>(string? value)
+        where TEnum : struct, Enum =>
+        string.IsNullOrWhiteSpace(value) ? null : Enum.Parse<TEnum>(value);
 }
 
 public sealed class UpdateClientServiceAgreementHandler(
@@ -181,13 +233,17 @@ public sealed class UpdateClientServiceAgreementHandler(
                 new(
                     command.ClientId,
                     command.AgreementId,
+                    command.PayerId,
+                    command.ClientCoverageId,
                     command.AgreementNumber,
                     command.PayerName,
                     command.InsuredMemberId,
                     command.PriorAuthorizationNumber,
                     command.StartDate,
                     command.EndDate,
-                    command.Status,
+                    ParseOptional<ClientServiceAgreementStatus>(command.Status),
+                    ParseOptional<ClientServiceAgreementPriority>(command.Priority),
+                    command.IsDummy,
                     command.Notes,
                     command.EditorVersion!,
                     command.Lines!.Select(Map).ToArray(),
@@ -198,20 +254,37 @@ public sealed class UpdateClientServiceAgreementHandler(
         line.Id,
         line.ServiceCode!,
         line.ServiceName!,
-        line.UnitType,
+        ParseOptional<ClientServiceAgreementUnitType>(line.UnitType),
         line.MinutesPerUnit,
         line.AuthorizedUnits,
         line.RatePerUnit,
+        line.StartDate,
+        line.EndDate,
+        line.RateEffectiveFrom,
+        line.RateEffectiveTo,
+        line.AuthorizedBudgetAmount,
         line.PlannedHoursPerVisit,
         line.PlannedVisitsPerWeek,
-        line.PrimaryDiagnosisText,
-        line.IcdCode);
+        line.Diagnoses!.Select(Map).ToArray());
+
+    private static SaveClientServiceAgreementLineDiagnosis Map(
+        ClientServiceAgreementLineDiagnosisInput diagnosis) => new(
+        diagnosis.Id,
+        diagnosis.DiagnosisText,
+        diagnosis.IcdCode,
+        diagnosis.IsPrimary);
+
+    private static TEnum? ParseOptional<TEnum>(string? value)
+        where TEnum : struct, Enum =>
+        string.IsNullOrWhiteSpace(value) ? null : Enum.Parse<TEnum>(value);
 }
 
 public abstract class ClientServiceAgreementValidator<T> : AbstractValidator<T>
 {
     protected void AddHeaderRules(
         Func<T, Guid> clientId,
+        Func<T, Guid?> payerId,
+        Func<T, Guid?> clientCoverageId,
         Func<T, string?> agreementNumber,
         Func<T, string?> payerName,
         Func<T, string?> insuredMemberId,
@@ -219,11 +292,16 @@ public abstract class ClientServiceAgreementValidator<T> : AbstractValidator<T>
         Func<T, DateOnly> startDate,
         Func<T, DateOnly?> endDate,
         Func<T, string?> status,
+        Func<T, string?> priority,
         Func<T, string?> notes,
         Func<T, IReadOnlyList<ClientServiceAgreementLineInput>?> lines,
         bool requireLines)
     {
         RuleFor(value => clientId(value)).NotEmpty().OverridePropertyName("ClientId");
+        RuleFor(value => payerId(value)).NotEqual(Guid.Empty).When(value => payerId(value).HasValue)
+            .OverridePropertyName("PayerId");
+        RuleFor(value => clientCoverageId(value)).NotEqual(Guid.Empty)
+            .When(value => clientCoverageId(value).HasValue).OverridePropertyName("ClientCoverageId");
         Maximum(agreementNumber, "AgreementNumber", ClientServiceAgreement.MaximumAgreementNumberLength);
         Maximum(payerName, "PayerName", ClientServiceAgreement.MaximumPayerNameLength);
         Maximum(insuredMemberId, "InsuredMemberId", ClientServiceAgreement.MaximumInsuredMemberIdLength);
@@ -231,7 +309,14 @@ public abstract class ClientServiceAgreementValidator<T> : AbstractValidator<T>
             priorAuthorizationNumber,
             "PriorAuthorizationNumber",
             ClientServiceAgreement.MaximumPriorAuthorizationNumberLength);
-        Maximum(status, "Status", ClientServiceAgreement.MaximumStatusLength);
+        RuleFor(value => status(value))
+            .Must(value => IsOptionalDefined<ClientServiceAgreementStatus>(value))
+            .WithMessage("Status must be a supported service agreement status.")
+            .OverridePropertyName("Status");
+        RuleFor(value => priority(value))
+            .Must(value => IsOptionalDefined<ClientServiceAgreementPriority>(value))
+            .WithMessage("Priority must be Normal, High, or Urgent.")
+            .OverridePropertyName("Priority");
         Maximum(notes, "Notes", ClientServiceAgreement.MaximumNotesLength);
         RuleFor(value => startDate(value)).NotEmpty().OverridePropertyName("StartDate");
         RuleFor(value => endDate(value))
@@ -256,6 +341,12 @@ public abstract class ClientServiceAgreementValidator<T> : AbstractValidator<T>
         RuleFor(item => value(item))
             .MaximumLength(maximumLength)
             .OverridePropertyName(propertyName);
+
+    private static bool IsOptionalDefined<TEnum>(string? value)
+        where TEnum : struct, Enum =>
+        string.IsNullOrWhiteSpace(value)
+        || (Enum.TryParse<TEnum>(value, ignoreCase: false, out var parsed)
+            && Enum.IsDefined(parsed));
 }
 
 public sealed class CreateClientServiceAgreementValidator
@@ -265,6 +356,8 @@ public sealed class CreateClientServiceAgreementValidator
     {
         AddHeaderRules(
             value => value.ClientId,
+            value => value.PayerId,
+            value => value.ClientCoverageId,
             value => value.AgreementNumber,
             value => value.PayerName,
             value => value.InsuredMemberId,
@@ -272,6 +365,7 @@ public sealed class CreateClientServiceAgreementValidator
             value => value.StartDate,
             value => value.EndDate,
             value => value.Status,
+            value => value.Priority,
             value => value.Notes,
             value => value.Lines,
             requireLines: true);
@@ -297,6 +391,8 @@ public sealed class UpdateClientServiceAgreementValidator
             .WithMessage("A service line cannot be supplied more than once.");
         AddHeaderRules(
             value => value.ClientId,
+            value => value.PayerId,
+            value => value.ClientCoverageId,
             value => value.AgreementNumber,
             value => value.PayerName,
             value => value.InsuredMemberId,
@@ -304,6 +400,7 @@ public sealed class UpdateClientServiceAgreementValidator
             value => value.StartDate,
             value => value.EndDate,
             value => value.Status,
+            value => value.Priority,
             value => value.Notes,
             value => value.Lines,
             requireLines: false);
@@ -325,20 +422,56 @@ public sealed class ClientServiceAgreementLineInputValidator
             .NotEmpty()
             .MaximumLength(ClientServiceAgreementLine.MaximumServiceNameLength);
         RuleFor(value => value.UnitType)
-            .MaximumLength(ClientServiceAgreementLine.MaximumUnitTypeLength);
+            .Must(value => IsOptionalDefined<ClientServiceAgreementUnitType>(value))
+            .WithMessage("UnitType must be a supported service agreement unit type.");
         RuleFor(value => value.MinutesPerUnit).GreaterThan(0).When(value => value.MinutesPerUnit.HasValue);
         RuleFor(value => value.AuthorizedUnits).GreaterThanOrEqualTo(0)
             .When(value => value.AuthorizedUnits.HasValue);
         RuleFor(value => value.RatePerUnit).GreaterThanOrEqualTo(0)
             .When(value => value.RatePerUnit.HasValue);
+        RuleFor(value => value.StartDate).NotEmpty();
+        RuleFor(value => value.EndDate)
+            .GreaterThanOrEqualTo(value => value.StartDate)
+            .When(value => value.EndDate.HasValue);
+        RuleFor(value => value.RateEffectiveTo)
+            .GreaterThanOrEqualTo(value => value.RateEffectiveFrom)
+            .When(value => value.RateEffectiveFrom.HasValue && value.RateEffectiveTo.HasValue);
+        RuleFor(value => value.AuthorizedBudgetAmount).GreaterThanOrEqualTo(0)
+            .When(value => value.AuthorizedBudgetAmount.HasValue);
         RuleFor(value => value.PlannedHoursPerVisit).GreaterThanOrEqualTo(0)
             .When(value => value.PlannedHoursPerVisit.HasValue);
         RuleFor(value => value.PlannedVisitsPerWeek).GreaterThanOrEqualTo(0)
             .When(value => value.PlannedVisitsPerWeek.HasValue);
-        RuleFor(value => value.PrimaryDiagnosisText)
-            .MaximumLength(ClientServiceAgreementLine.MaximumDiagnosisTextLength);
+        RuleFor(value => value.Diagnoses).NotNull();
+        RuleFor(value => value.Diagnoses)
+            .Must(diagnoses => diagnoses is null || diagnoses.Count(item => item.IsPrimary) <= 1)
+            .WithMessage("Only one primary diagnosis may be supplied per service line.");
+        RuleFor(value => value.Diagnoses)
+            .Must(diagnoses => diagnoses is null
+                || diagnoses.Where(item => item.Id.HasValue).Select(item => item.Id).Distinct().Count()
+                    == diagnoses.Count(item => item.Id.HasValue))
+            .WithMessage("A diagnosis cannot be supplied more than once.");
+        RuleForEach(value => value.Diagnoses!)
+            .SetValidator(new ClientServiceAgreementLineDiagnosisInputValidator())
+            .When(value => value.Diagnoses is not null);
+    }
+
+    private static bool IsOptionalDefined<TEnum>(string? value)
+        where TEnum : struct, Enum =>
+        string.IsNullOrWhiteSpace(value)
+        || (Enum.TryParse<TEnum>(value, ignoreCase: false, out var parsed)
+            && Enum.IsDefined(parsed));
+}
+
+public sealed class ClientServiceAgreementLineDiagnosisInputValidator
+    : AbstractValidator<ClientServiceAgreementLineDiagnosisInput>
+{
+    public ClientServiceAgreementLineDiagnosisInputValidator()
+    {
+        RuleFor(value => value.DiagnosisText)
+            .MaximumLength(ClientServiceAgreementLineDiagnosis.MaximumDiagnosisTextLength);
         RuleFor(value => value.IcdCode)
-            .MaximumLength(ClientServiceAgreementLine.MaximumIcdCodeLength);
+            .MaximumLength(ClientServiceAgreementLineDiagnosis.MaximumIcdCodeLength);
     }
 }
 

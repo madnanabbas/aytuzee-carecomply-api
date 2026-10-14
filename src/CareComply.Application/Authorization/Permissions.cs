@@ -52,6 +52,20 @@ public static class Permissions
         public const string Edit = "ClientServiceAgreement.Edit";
     }
 
+    public static class ClientCoverage
+    {
+        public const string View = "ClientCoverage.View";
+        public const string Create = "ClientCoverage.Create";
+        public const string Edit = "ClientCoverage.Edit";
+    }
+
+    public static class Payer
+    {
+        public const string View = "Payer.View";
+        public const string Create = "Payer.Create";
+        public const string Edit = "Payer.Edit";
+    }
+
     public static class ClientCaregiver
     {
         public const string View = "ClientCaregiver.View";
@@ -255,6 +269,12 @@ public static class Permissions
             ClientServiceAgreement.View,
             ClientServiceAgreement.Create,
             ClientServiceAgreement.Edit,
+            ClientCoverage.View,
+            ClientCoverage.Create,
+            ClientCoverage.Edit,
+            Payer.View,
+            Payer.Create,
+            Payer.Edit,
             ClientCaregiver.View,
             ClientCaregiver.Create,
             ClientCaregiver.Edit,

@@ -29,6 +29,11 @@ jobs:
       - name: Checkout API repository
         uses: actions/checkout@v4
 
+      - name: Show GitHub repository ID
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Repository ID: ${{ github.repository_id }}"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

@@ -2,6 +2,7 @@ using CareComply.Application.Abstractions.Clients;
 using CareComply.Application.Auditing;
 using CareComply.Application.Authorization;
 using CareComply.Application.Features.ClientServiceAgreements;
+using CareComply.Domain.Clients;
 
 namespace CareComply.Application.Tests;
 
@@ -76,15 +77,71 @@ public sealed class ClientServiceAgreementApplicationTests
     }
 
     [Fact]
+    public void ValidatorRejectsUnsupportedControlledValuesAndMultiplePrimaryDiagnoses()
+    {
+        var line = ValidLine() with
+        {
+            UnitType = "hour",
+            EndDate = new DateOnly(2025, 12, 31),
+            RateEffectiveFrom = new DateOnly(2026, 2, 1),
+            RateEffectiveTo = new DateOnly(2026, 1, 31),
+            Diagnoses =
+            [
+                new(null, "One", "A", true),
+                new(null, "Two", "B", true),
+            ],
+        };
+        var command = CreateCommand(Guid.NewGuid(), [line]) with
+        {
+            Status = "active",
+            Priority = "Critical",
+        };
+
+        var result = new CreateClientServiceAgreementValidator().Validate(command);
+
+        Assert.Contains(result.Errors, error => error.PropertyName == "Status");
+        Assert.Contains(result.Errors, error => error.PropertyName == "Priority");
+        Assert.Contains(result.Errors, error => error.PropertyName.EndsWith("UnitType", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.PropertyName.EndsWith("EndDate", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.PropertyName.EndsWith("RateEffectiveTo", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.ErrorMessage ==
+            "Only one primary diagnosis may be supplied per service line.");
+    }
+
+    [Fact]
+    public void ValidatorAcceptsAllApprovedControlledValuesAndZeroDiagnoses()
+    {
+        var statuses = Enum.GetNames<ClientServiceAgreementStatus>();
+        var priorities = Enum.GetNames<ClientServiceAgreementPriority>();
+        var unitTypes = Enum.GetNames<ClientServiceAgreementUnitType>();
+
+        foreach (var status in statuses)
+            foreach (var priority in priorities)
+                foreach (var unitType in unitTypes)
+                {
+                    var command = CreateCommand(Guid.NewGuid(),
+                        [ValidLine() with { UnitType = unitType, Diagnoses = [] }]) with
+                    {
+                        Status = status,
+                        Priority = priority,
+                    };
+
+                    Assert.True(new CreateClientServiceAgreementValidator().Validate(command).IsValid);
+                }
+    }
+
+    [Fact]
     public void SuccessfulAuditContainsOnlySafeIdentifiersAndLineCount()
     {
         var clientId = Guid.NewGuid();
         var agreementId = Guid.NewGuid();
         var item = new ClientServiceAgreementItem(
             agreementId, "Agreement", "Payer", "Sensitive member", "Sensitive prior auth",
-            new DateOnly(2026, 1, 1), null, "Active", "Sensitive notes", new string('A', 64),
-            [new(Guid.NewGuid(), "T1019", "Service", null, 15, 10, 5, 2, 3,
-                "Sensitive diagnosis", "Sensitive ICD", 50, 6, 24)]);
+            new DateOnly(2026, 1, 1), null, ClientServiceAgreementStatus.Active,
+            ClientServiceAgreementPriority.High, false, "Sensitive notes", new string('A', 64),
+            [new(Guid.NewGuid(), "T1019", "Service", ClientServiceAgreementUnitType.FifteenMinutes,
+                15, 10, 5, new DateOnly(2026, 1, 1), null, null, null, 500, 2, 3,
+                [new(Guid.NewGuid(), "Sensitive diagnosis", "Sensitive ICD", true)], 50, 6, 24)]);
         var response = ClientServiceAgreementResult.Changed(
             new(ClientServiceAgreementMutationStatus.Succeeded, item));
 
@@ -104,7 +161,7 @@ public sealed class ClientServiceAgreementApplicationTests
         Guid clientId,
         IReadOnlyList<ClientServiceAgreementLineInput> lines) => new(
         clientId, "Agreement", "Payer", "Member", "Prior", new DateOnly(2026, 1, 1),
-        null, "Active", "Notes", lines);
+        null, "Active", "High", false, "Notes", lines);
 
     private static UpdateClientServiceAgreementCommand UpdateCommand(
         Guid clientId,
@@ -112,9 +169,10 @@ public sealed class ClientServiceAgreementApplicationTests
         string editorVersion,
         IReadOnlyList<ClientServiceAgreementLineInput> lines) => new(
         clientId, agreementId, "Agreement", "Payer", "Member", "Prior",
-        new DateOnly(2026, 1, 1), null, "Active", "Notes", editorVersion, lines);
+        new DateOnly(2026, 1, 1), null, "Active", "High", false, "Notes", editorVersion, lines);
 
     private static ClientServiceAgreementLineInput ValidLine() => new(
-        null, "T1019", "Personal care", "15 minutes", 15, 100, 8, 2, 3,
-        "Diagnosis", "Z00.00");
+        null, "T1019", "Personal care", "FifteenMinutes", 15, 100, 8,
+        new DateOnly(2026, 1, 1), null, null, null, 800, 2, 3,
+        [new(null, "Diagnosis", "Z00.00", true)]);
 }

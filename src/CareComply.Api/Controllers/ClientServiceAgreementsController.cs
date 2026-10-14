@@ -62,6 +62,8 @@ public sealed class ClientServiceAgreementsController(ISender sender) : Controll
         var result = await sender.Send(
             new CreateClientServiceAgreementCommand(
                 clientId,
+                request.PayerId,
+                request.ClientCoverageId,
                 request.AgreementNumber,
                 request.PayerName,
                 request.InsuredMemberId,
@@ -69,6 +71,8 @@ public sealed class ClientServiceAgreementsController(ISender sender) : Controll
                 request.StartDate,
                 request.EndDate,
                 request.Status,
+                request.Priority,
+                request.IsDummy,
                 request.Notes,
                 request.Lines?.Select(Map).ToArray()),
             cancellationToken);
@@ -87,6 +91,8 @@ public sealed class ClientServiceAgreementsController(ISender sender) : Controll
             new UpdateClientServiceAgreementCommand(
                 clientId,
                 agreementId,
+                request.PayerId,
+                request.ClientCoverageId,
                 request.AgreementNumber,
                 request.PayerName,
                 request.InsuredMemberId,
@@ -94,6 +100,8 @@ public sealed class ClientServiceAgreementsController(ISender sender) : Controll
                 request.StartDate,
                 request.EndDate,
                 request.Status,
+                request.Priority,
+                request.IsDummy,
                 request.Notes,
                 request.EditorVersion,
                 request.Lines?.Select(Map).ToArray()),
@@ -118,6 +126,10 @@ public sealed class ClientServiceAgreementsController(ISender sender) : Controll
                     : Ok(Map(item)),
             ClientServiceAgreementMutationStatus.ClientNotFound => ClientNotFound(),
             ClientServiceAgreementMutationStatus.NotFound => AgreementNotFound(),
+            ClientServiceAgreementMutationStatus.InvalidPayer => BadRequest(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["payerId"] = ["Select a payer owned by the client's company."] })),
+            ClientServiceAgreementMutationStatus.InvalidCoverage => BadRequest(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["clientCoverageId"] = ["Select coverage belonging to this client and consistent with the payer."] })),
             ClientServiceAgreementMutationStatus.Conflict => Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "The service agreement has changed since it was loaded. Refresh it and try again.",
@@ -153,10 +165,14 @@ public sealed class ClientServiceAgreementsController(ISender sender) : Controll
         line.MinutesPerUnit,
         line.AuthorizedUnits,
         line.RatePerUnit,
+        line.StartDate,
+        line.EndDate,
+        line.RateEffectiveFrom,
+        line.RateEffectiveTo,
+        line.AuthorizedBudgetAmount,
         line.PlannedHoursPerVisit,
         line.PlannedVisitsPerWeek,
-        line.PrimaryDiagnosisText,
-        line.IcdCode);
+        line.Diagnoses?.Select(Map).ToArray());
 
     private static ClientServiceAgreementLineInput Map(
         UpdateClientServiceAgreementLineRequest line) => new(
@@ -167,37 +183,81 @@ public sealed class ClientServiceAgreementsController(ISender sender) : Controll
         line.MinutesPerUnit,
         line.AuthorizedUnits,
         line.RatePerUnit,
+        line.StartDate,
+        line.EndDate,
+        line.RateEffectiveFrom,
+        line.RateEffectiveTo,
+        line.AuthorizedBudgetAmount,
         line.PlannedHoursPerVisit,
         line.PlannedVisitsPerWeek,
-        line.PrimaryDiagnosisText,
-        line.IcdCode);
+        line.Diagnoses?.Select(Map).ToArray());
+
+    private static ClientServiceAgreementLineDiagnosisInput Map(
+        CreateClientServiceAgreementLineDiagnosisRequest diagnosis) => new(
+        null,
+        diagnosis.DiagnosisText,
+        diagnosis.IcdCode,
+        diagnosis.IsPrimary);
+
+    private static ClientServiceAgreementLineDiagnosisInput Map(
+        UpdateClientServiceAgreementLineDiagnosisRequest diagnosis) => new(
+        diagnosis.Id,
+        diagnosis.DiagnosisText,
+        diagnosis.IcdCode,
+        diagnosis.IsPrimary);
 
     private static ClientServiceAgreementResponse Map(ClientServiceAgreementItem agreement) => new(
         agreement.Id,
+        agreement.PayerId,
+        agreement.ClientCoverageId,
         agreement.AgreementNumber,
         agreement.PayerName,
         agreement.InsuredMemberId,
         agreement.PriorAuthorizationNumber,
         agreement.StartDate,
         agreement.EndDate,
-        agreement.Status,
+        agreement.Status?.ToString(),
+        agreement.Priority?.ToString(),
+        agreement.IsDummy,
         agreement.Notes,
         agreement.EditorVersion,
-        agreement.Lines.Select(Map).ToArray());
+        agreement.Lines.Select(Map).ToArray(),
+        agreement.Warnings.Select(Map).ToArray());
+
+    private static ClientServiceAgreementWarningResponse Map(
+        ClientServiceAgreementWarning warning) => new(
+        warning.Code,
+        warning.ServiceCode,
+        warning.ServiceLineId,
+        warning.OverlappingAgreementId,
+        warning.OverlappingLineId,
+        warning.OverlapStartDate,
+        warning.OverlapEndDate);
 
     private static ClientServiceAgreementLineResponse Map(ClientServiceAgreementLineItem line) => new(
         line.Id,
         line.ServiceCode,
         line.ServiceName,
-        line.UnitType,
+        line.UnitType?.ToString(),
         line.MinutesPerUnit,
         line.AuthorizedUnits,
         line.RatePerUnit,
+        line.StartDate,
+        line.EndDate,
+        line.RateEffectiveFrom,
+        line.RateEffectiveTo,
+        line.AuthorizedBudgetAmount,
         line.PlannedHoursPerVisit,
         line.PlannedVisitsPerWeek,
-        line.PrimaryDiagnosisText,
-        line.IcdCode,
+        line.Diagnoses.Select(Map).ToArray(),
         line.EstimatedBudget,
         line.PlannedHoursPerWeek,
         line.PlannedUnitsPerWeek);
+
+    private static ClientServiceAgreementLineDiagnosisResponse Map(
+        ClientServiceAgreementLineDiagnosisItem diagnosis) => new(
+        diagnosis.Id,
+        diagnosis.DiagnosisText,
+        diagnosis.IcdCode,
+        diagnosis.IsPrimary);
 }

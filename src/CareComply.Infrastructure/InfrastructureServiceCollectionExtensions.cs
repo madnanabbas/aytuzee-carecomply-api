@@ -182,6 +182,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITenantScopeAccessor, EfTenantScopeAccessor>();
         services.AddScoped<ICompanyAdministration, EfCompanyAdministration>();
         services.AddScoped<ILocationAdministration, EfLocationAdministration>();
+        services.AddScoped<IPayerStore, EfPayerStore>();
         services.AddScoped<TenantUserAccess>();
         services.AddScoped<INavigationDirectory, EfNavigationDirectory>();
         services.AddScoped<NavigationManagementReader>();
@@ -209,6 +210,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IClientCareCoordinatorStore, EfClientCareCoordinatorStore>();
         services.AddScoped<IClientClinicalContactStore, EfClientClinicalContactStore>();
         services.AddScoped<IClientHospitalizationStore, EfClientHospitalizationStore>();
+        services.AddScoped<IClientCoverageStore, EfClientCoverageStore>();
         services.AddScoped<IClientServiceAgreementStore, EfClientServiceAgreementStore>();
         services.AddScoped<IClientSensitiveData, DataProtectionClientSensitiveData>();
         services.AddScoped<IClientGuestInvitationCreator, EfClientGuestInvitationCreator>();

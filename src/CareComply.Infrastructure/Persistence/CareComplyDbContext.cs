@@ -19,6 +19,7 @@ public sealed class CareComplyDbContext
 
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<CompanyLocation> CompanyLocations => Set<CompanyLocation>();
+    public DbSet<Payer> Payers => Set<Payer>();
     public DbSet<ApplicationUserLocation> UserLocations => Set<ApplicationUserLocation>();
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<ClientGuestInvitation> ClientGuestInvitations => Set<ClientGuestInvitation>();
@@ -30,8 +31,11 @@ public sealed class CareComplyDbContext
     public DbSet<ClientHospitalization> ClientHospitalizations => Set<ClientHospitalization>();
     public DbSet<ClientTodo> ClientTodos => Set<ClientTodo>();
     public DbSet<ClientCaregiver> ClientCaregivers => Set<ClientCaregiver>();
+    public DbSet<ClientCoverage> ClientCoverages => Set<ClientCoverage>();
     public DbSet<ClientServiceAgreement> ClientServiceAgreements => Set<ClientServiceAgreement>();
     public DbSet<ClientServiceAgreementLine> ClientServiceAgreementLines => Set<ClientServiceAgreementLine>();
+    public DbSet<ClientServiceAgreementLineDiagnosis> ClientServiceAgreementLineDiagnoses =>
+        Set<ClientServiceAgreementLineDiagnosis>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

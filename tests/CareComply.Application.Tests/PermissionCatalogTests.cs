@@ -9,11 +9,11 @@ public sealed partial class PermissionCatalogTests
     public void CatalogContainsExpectedUniqueValidPermissions()
     {
         Assert.Equal(
-            97,
+            103,
             Permissions.All.Count);
 
         Assert.Equal(
-            97,
+            103,
             Permissions.All
                 .Distinct(StringComparer.Ordinal)
                 .Count());
