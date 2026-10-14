@@ -29,10 +29,11 @@ jobs:
       - name: Checkout API repository
         uses: actions/checkout@v4
 
-      - name: Show GitHub repository ID
+      - name: Show GitHub repository information
         run: |
           echo "Repository: ${{ github.repository }}"
           echo "Repository ID: ${{ github.repository_id }}"
+          echo "Owner ID: ${{ github.repository_owner_id }}"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -77,6 +78,7 @@ jobs:
     name: Deploy to Azure Web App
     runs-on: ubuntu-latest
     needs: build
+
     permissions:
       contents: read
       id-token: write
@@ -95,12 +97,38 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Verify Azure subscription and Web App
+        run: |
+          echo "Current Azure subscription:"
+          az account show \
+            --query "{name:name,id:id,tenantId:tenantId}" \
+            --output table
+
+          echo ""
+          echo "Visible Azure Web Apps:"
+          az webapp list \
+            --query "[].{name:name,resourceGroup:resourceGroup,state:state,defaultHostName:defaultHostName}" \
+            --output table
+
+          echo ""
+          echo "Checking target Web App: ${{ env.AZURE_WEBAPP_NAME }}"
+
+          APP_COUNT=$(az webapp list \
+            --query "[?name=='${{ env.AZURE_WEBAPP_NAME }}'] | length(@)" \
+            --output tsv)
+
+          if [ "$APP_COUNT" = "0" ]; then
+            echo "ERROR: Web App '${{ env.AZURE_WEBAPP_NAME }}' is not visible in the logged-in subscription."
+            echo "Check AZURE_SUBSCRIPTION_ID and the service principal RBAC permissions."
+            exit 1
+          fi
+
+          echo "Web App '${{ env.AZURE_WEBAPP_NAME }}' found."
+
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          slot-name: Production
           package: publish
 
       - name: Logout from Azure
