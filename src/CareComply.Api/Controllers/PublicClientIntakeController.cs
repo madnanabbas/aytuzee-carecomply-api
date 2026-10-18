@@ -284,7 +284,7 @@ public sealed class PublicClientIntakeController(
                 contact.Country, languages.Select(value => new CareComply.Api.Contracts.Clients.ClientLanguageRequest(
                     value.LanguageCode, value.LanguageName, value.IsPrimary)).ToArray()), version, progress));
     }
-
+     
     [HttpPut("contact-information")]
     [IgnoreAntiforgeryToken]
     [EnableRateLimiting(CareComplyAuthenticationServiceCollectionExtensions.PublicClientIntakeRateLimitPolicy)]
