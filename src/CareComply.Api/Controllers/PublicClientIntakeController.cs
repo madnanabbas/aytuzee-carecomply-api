@@ -286,7 +286,7 @@ public sealed class PublicClientIntakeController(
     }
      
     [HttpPut("contact-information")]
-    [IgnoreAntiforgeryToken]
+    [IgnoreAntiforgeryToken] 
     [EnableRateLimiting(CareComplyAuthenticationServiceCollectionExtensions.PublicClientIntakeRateLimitPolicy)]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<PublicClientIntakeStepContinuationResponse>> UpdateContactInformation(
