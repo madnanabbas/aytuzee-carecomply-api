@@ -84,9 +84,16 @@ internal sealed class EfClientGuestInvitationPublicResolver(
             var preparation = await basicDetailsPersistence.PrepareAsync(
                 invitation.CompanyId, request, cancellationToken);
             if (preparation.Client is null)
-                return new(preparation.Status == ClientAdministrationStatus.DuplicatePmi
-                    ? PublicClientIntakeCreationStatus.DuplicatePmi
-                    : PublicClientIntakeCreationStatus.InvalidAssignment);
+            {
+                if (preparation.Status != ClientAdministrationStatus.DuplicatePmi)
+                    return new(PublicClientIntakeCreationStatus.InvalidAssignment);
+
+                context.ChangeTracker.Clear();
+                var current = await FindInvitationAsync(token, false, cancellationToken);
+                return current?.CreatedClientId is { } currentId
+                    ? await ExistingContinuationAsync(currentId, cancellationToken)
+                    : new(PublicClientIntakeCreationStatus.DuplicatePmi);
+            }
             invitation.BindCreatedClient(preparation.Client.Id, timeProvider.GetUtcNow());
             await context.SaveChangesAsync(cancellationToken);
             return new(
