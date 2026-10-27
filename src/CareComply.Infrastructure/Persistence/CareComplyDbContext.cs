@@ -1,5 +1,6 @@
 using CareComply.Domain.Clients;
 using CareComply.Domain.Companies;
+using CareComply.Domain.Forms;
 using CareComply.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +37,10 @@ public sealed class CareComplyDbContext
     public DbSet<ClientServiceAgreementLine> ClientServiceAgreementLines => Set<ClientServiceAgreementLine>();
     public DbSet<ClientServiceAgreementLineDiagnosis> ClientServiceAgreementLineDiagnoses =>
         Set<ClientServiceAgreementLineDiagnosis>();
+    public DbSet<FormTemplate> FormTemplates => Set<FormTemplate>();
+    public DbSet<FormTemplateVersion> FormTemplateVersions => Set<FormTemplateVersion>();
+    public DbSet<FormTemplateFieldMapping> FormTemplateFieldMappings =>
+        Set<FormTemplateFieldMapping>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

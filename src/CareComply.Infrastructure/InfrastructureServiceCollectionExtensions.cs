@@ -1,8 +1,10 @@
 using CareComply.Infrastructure.Clients;
 using CareComply.Infrastructure.Employees;
+using CareComply.Infrastructure.Forms;
 using CareComply.Infrastructure.Companies;
 using CareComply.Application.Abstractions.Clients;
 using CareComply.Application.Abstractions.Employees;
+using CareComply.Application.Abstractions.Forms;
 using CareComply.Application.Abstractions.Companies;
 using CareComply.Application.Abstractions.Auditing;
 using CareComply.Application.Abstractions.Authorization;
@@ -105,6 +107,7 @@ public static class InfrastructureServiceCollectionExtensions
         AddAccessManagementInfrastructure(services);
         AddClientInfrastructure(services);
         AddEmployeeInfrastructure(services);
+        AddFormContentInfrastructure(services, configuration);
         services.AddScoped<IAuditExecution, EfAuditExecution>();
 
         return services;
@@ -229,5 +232,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<EmployeeLocationSynchronizer>();
         services.AddScoped<IEmployeeAdministration, EfEmployeeAdministration>();
         services.AddScoped<IEmployeeSensitiveData, DataProtectionEmployeeSensitiveData>();
+    }
+
+    private static void AddFormContentInfrastructure(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<LocalFormContentStoreOptions>()
+            .Bind(configuration.GetSection(LocalFormContentStoreOptions.SectionName));
+        services.AddSingleton<IFormContentStore, LocalFormContentStore>();
     }
 }

@@ -1412,6 +1412,265 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.ToTable("Payers", "dbo");
                 });
 
+            modelBuilder.Entity("CareComply.Domain.Forms.FormTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OwnerType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_FormTemplates");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("IX_FormTemplates_CreatedByUserId");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FormTemplates_Platform_Key")
+                        .HasFilter("[OwnerType] = 'Platform'");
+
+                    b.HasIndex("CompanyId", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FormTemplates_Company_Key")
+                        .HasFilter("[OwnerType] = 'Company'");
+
+                    b.HasIndex("OwnerType", "CompanyId", "IsActive", "Name")
+                        .HasDatabaseName("IX_FormTemplates_Owner_Active_Name");
+
+                    b.ToTable("FormTemplates", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_FormTemplates_Owner", "([OwnerType] = 'Platform' AND [CompanyId] IS NULL) OR ([OwnerType] = 'Company' AND [CompanyId] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Forms.FormTemplateFieldMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BindingKey")
+                        .HasMaxLength(200)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<string>("FieldPurpose")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<Guid>("FormTemplateVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FormatKey")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("IsUserEditable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PdfFieldName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("PdfFieldType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_FormTemplateFieldMappings");
+
+                    b.HasIndex("BindingKey")
+                        .HasDatabaseName("IX_FormTemplateFieldMappings_BindingKey");
+
+                    b.HasIndex("FormTemplateVersionId", "PdfFieldName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FormTemplateFieldMappings_Version_FieldName");
+
+                    b.ToTable("FormTemplateFieldMappings", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_FormTemplateFieldMappings_Binding", "([FieldPurpose] = 'Data' AND [BindingKey] IS NOT NULL) OR ([FieldPurpose] IN ('Manual', 'Signature', 'Attestation') AND [BindingKey] IS NULL)");
+
+                            t.HasCheckConstraint("CK_FormTemplateFieldMappings_PdfFieldType", "[PdfFieldType] IN ('Text', 'CheckBox', 'RadioButton', 'Choice', 'Button', 'Signature', 'Unknown')");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Forms.FormTemplateVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateOnly?>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FormTechnology")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<Guid>("FormTemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("PageCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("PublishedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("StorageObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTimeOffset>("UploadedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PK_FormTemplateVersions");
+
+                    b.HasIndex("PublishedByUserId")
+                        .HasDatabaseName("IX_FormTemplateVersions_PublishedByUserId");
+
+                    b.HasIndex("StorageObjectKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FormTemplateVersions_StorageObjectKey");
+
+                    b.HasIndex("UploadedByUserId")
+                        .HasDatabaseName("IX_FormTemplateVersions_UploadedByUserId");
+
+                    b.HasIndex("FormTemplateId", "VersionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FormTemplateVersions_Template_Version");
+
+                    b.HasIndex("FormTemplateId", "Status", "VersionNumber")
+                        .HasDatabaseName("IX_FormTemplateVersions_Template_Status_Version");
+
+                    b.ToTable("FormTemplateVersions", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_FormTemplateVersions_EffectiveDates", "[EffectiveTo] IS NULL OR [EffectiveFrom] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+
+                            t.HasCheckConstraint("CK_FormTemplateVersions_FormTechnology", "[FormTechnology] IN ('AcroForm', 'HybridXfaAcroForm', 'Unsupported')");
+
+                            t.HasCheckConstraint("CK_FormTemplateVersions_PdfContent", "[ContentType] = 'application/pdf' AND LEN([StorageObjectKey]) = 32 AND [StorageObjectKey] NOT LIKE '%[^0-9a-f]%' AND LEN([Sha256]) = 64 AND [Sha256] NOT LIKE '%[^0-9a-f]%' ");
+
+                            t.HasCheckConstraint("CK_FormTemplateVersions_PositiveValues", "[VersionNumber] > 0 AND [SizeBytes] > 0 AND [PageCount] > 0");
+
+                            t.HasCheckConstraint("CK_FormTemplateVersions_PublishedState", "([Status] = 'Draft' AND [PublishedByUserId] IS NULL AND [PublishedAtUtc] IS NULL) OR ([Status] IN ('Published', 'Retired') AND [PublishedByUserId] IS NOT NULL AND [PublishedAtUtc] IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("CareComply.Domain.Navigation.NavigationFeature", b =>
                 {
                     b.Property<int>("Id")
@@ -2504,6 +2763,21 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             Id = 103,
                             Name = "ClientCoverage.Edit"
+                        },
+                        new
+                        {
+                            Id = 104,
+                            Name = "FormTemplate.View"
+                        },
+                        new
+                        {
+                            Id = 105,
+                            Name = "FormTemplate.Manage"
+                        },
+                        new
+                        {
+                            Id = 106,
+                            Name = "ClientForm.Export"
                         });
                 });
 
@@ -3481,6 +3755,55 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Payers_Companies_CompanyId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Forms.FormTemplate", b =>
+                {
+                    b.HasOne("CareComply.Domain.Companies.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_FormTemplates_Companies_CompanyId");
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_FormTemplates_Users_CreatedByUserId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Forms.FormTemplateFieldMapping", b =>
+                {
+                    b.HasOne("CareComply.Domain.Forms.FormTemplateVersion", null)
+                        .WithMany()
+                        .HasForeignKey("FormTemplateVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_FormTemplateFieldMappings_FormTemplateVersions_FormTemplateVersionId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Forms.FormTemplateVersion", b =>
+                {
+                    b.HasOne("CareComply.Domain.Forms.FormTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("FormTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_FormTemplateVersions_FormTemplates_FormTemplateId");
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("PublishedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_FormTemplateVersions_Users_PublishedByUserId");
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_FormTemplateVersions_Users_UploadedByUserId");
                 });
 
             modelBuilder.Entity("CareComply.Domain.Navigation.NavigationFeature", b =>

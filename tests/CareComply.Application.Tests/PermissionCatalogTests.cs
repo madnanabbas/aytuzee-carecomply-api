@@ -9,11 +9,11 @@ public sealed partial class PermissionCatalogTests
     public void CatalogContainsExpectedUniqueValidPermissions()
     {
         Assert.Equal(
-            103,
+            106,
             Permissions.All.Count);
 
         Assert.Equal(
-            103,
+            106,
             Permissions.All
                 .Distinct(StringComparer.Ordinal)
                 .Count());
@@ -28,6 +28,9 @@ public sealed partial class PermissionCatalogTests
         Assert.False(
             Permissions.IsDefined("Client.Delete"));
         Assert.True(Permissions.IsDefined(Permissions.Client.GuestInvite));
+        Assert.True(Permissions.IsDefined(Permissions.FormTemplate.View));
+        Assert.True(Permissions.IsDefined(Permissions.FormTemplate.Manage));
+        Assert.True(Permissions.IsDefined(Permissions.ClientForm.Export));
     }
 
     [GeneratedRegex(

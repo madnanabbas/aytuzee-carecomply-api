@@ -78,6 +78,9 @@ internal static class PermissionSeedData
             new(97, Permissions.Client.GuestInvite),
             new(98, Permissions.Payer.View), new(99, Permissions.Payer.Create), new(100, Permissions.Payer.Edit),
             new(101, Permissions.ClientCoverage.View), new(102, Permissions.ClientCoverage.Create), new(103, Permissions.ClientCoverage.Edit),
+            new(104, Permissions.FormTemplate.View),
+            new(105, Permissions.FormTemplate.Manage),
+            new(106, Permissions.ClientForm.Export),
         ]);
 }
 

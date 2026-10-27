@@ -127,6 +127,13 @@ public static class Permissions
         public const string View = "ClientForm.View";
         public const string Create = "ClientForm.Create";
         public const string Edit = "ClientForm.Edit";
+        public const string Export = "ClientForm.Export";
+    }
+
+    public static class FormTemplate
+    {
+        public const string View = "FormTemplate.View";
+        public const string Manage = "FormTemplate.Manage";
     }
 
     public static class ClientEmailLog
@@ -302,6 +309,9 @@ public static class Permissions
             ClientForm.View,
             ClientForm.Create,
             ClientForm.Edit,
+            ClientForm.Export,
+            FormTemplate.View,
+            FormTemplate.Manage,
             ClientEmailLog.View,
             ClientEmployeeService.View,
             ClientEmployeeService.Create,
