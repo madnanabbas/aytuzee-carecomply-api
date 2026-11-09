@@ -43,6 +43,78 @@ public sealed class NavigationIntegrationTests(SqlServerApiFactory factory)
     }
 
     [Fact]
+    public async Task ClientNavigationChildrenArePermissionFilteredNestedAndOrdered()
+    {
+        var allowedUser = await factory.CreateUserAsync(
+            $"client-navigation-{Guid.NewGuid():N}@example.test", ValidPassword);
+        await factory.GrantPermissionAsync(allowedUser.Id, Permissions.Client.View);
+        await factory.GrantPermissionAsync(allowedUser.Id, Permissions.ClientForm.View);
+        using var allowedClient = factory.CreateSecureClient();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await allowedClient.PostAsJsonAsync("/api/auth/login",
+                new { email = allowedUser.Email, password = ValidPassword })).StatusCode);
+
+        var allowedModules = await allowedClient
+            .GetFromJsonAsync<NavigationModuleResponse[]>("/api/navigation");
+
+        Assert.NotNull(allowedModules);
+        var people = Assert.Single(allowedModules, module => module.Key == "people");
+        var clients = Assert.Single(people.Features, feature => feature.Key == "clients");
+        Assert.Equal(["client-list", "client-forms"], clients.Children.Select(child => child.Key));
+        var clientList = clients.Children[0];
+        Assert.Equal("Client List", clientList.Name);
+        Assert.Equal("/clients/list", clientList.Route);
+        Assert.Equal(5, clientList.SortOrder);
+        var forms = clients.Children[1];
+        Assert.Equal("client-forms", forms.Key);
+        Assert.Equal("Forms", forms.Name);
+        Assert.Equal("/clients/forms", forms.Route);
+        Assert.Equal(10, forms.SortOrder);
+
+        var formsOnlyUser = await factory.CreateUserAsync(
+            $"client-forms-only-navigation-{Guid.NewGuid():N}@example.test", ValidPassword);
+        await factory.GrantPermissionAsync(formsOnlyUser.Id, Permissions.ClientForm.View);
+        using var formsOnlyClient = factory.CreateSecureClient();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await formsOnlyClient.PostAsJsonAsync("/api/auth/login",
+                new { email = formsOnlyUser.Email, password = ValidPassword })).StatusCode);
+
+        var formsOnlyModules = await formsOnlyClient
+            .GetFromJsonAsync<NavigationModuleResponse[]>("/api/navigation");
+
+        Assert.NotNull(formsOnlyModules);
+        var formsOnlyPeople = Assert.Single(formsOnlyModules, module => module.Key == "people");
+        var formsOnlyClients = Assert.Single(
+            formsOnlyPeople.Features, feature => feature.Key == "clients");
+        Assert.Equal("client-forms", Assert.Single(formsOnlyClients.Children).Key);
+        Assert.DoesNotContain(
+            formsOnlyModules.SelectMany(module => module.Features)
+                .SelectMany(feature => feature.Children),
+            child => child.Key == "client-list");
+
+        var listOnlyUser = await factory.CreateUserAsync(
+            $"client-list-only-navigation-{Guid.NewGuid():N}@example.test", ValidPassword);
+        await factory.GrantPermissionAsync(listOnlyUser.Id, Permissions.Client.View);
+        using var listOnlyClient = factory.CreateSecureClient();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await listOnlyClient.PostAsJsonAsync("/api/auth/login",
+                new { email = listOnlyUser.Email, password = ValidPassword })).StatusCode);
+
+        var listOnlyModules = await listOnlyClient
+            .GetFromJsonAsync<NavigationModuleResponse[]>("/api/navigation");
+
+        Assert.NotNull(listOnlyModules);
+        var listOnlyPeople = Assert.Single(listOnlyModules, module => module.Key == "people");
+        var listOnlyClients = Assert.Single(
+            listOnlyPeople.Features, feature => feature.Key == "clients");
+        Assert.Equal("client-list", Assert.Single(listOnlyClients.Children).Key);
+        Assert.DoesNotContain(
+            listOnlyModules.SelectMany(module => module.Features)
+                .SelectMany(feature => feature.Children),
+            child => child.Key == "client-forms");
+    }
+
+    [Fact]
     public async Task ReturnsOnlyOrderedDatabaseMetadataAllowedByEffectivePermissions()
     {
         var user = await factory.CreateUserAsync(

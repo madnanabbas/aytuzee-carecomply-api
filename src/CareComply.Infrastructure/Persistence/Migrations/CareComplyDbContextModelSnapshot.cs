@@ -510,6 +510,10 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<bool?>("HasSpenddown")
                         .HasColumnType("bit");
 
@@ -522,8 +526,16 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsPrimary")
                         .HasColumnType("bit");
 
+                    b.Property<string>("LastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<bool?>("LivesWithClient")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1643,6 +1655,10 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.HasIndex("PublishedByUserId")
                         .HasDatabaseName("IX_FormTemplateVersions_PublishedByUserId");
 
+                    b.HasIndex("Sha256")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FormTemplateVersions_Sha256");
+
                     b.HasIndex("StorageObjectKey")
                         .IsUnique()
                         .HasDatabaseName("UX_FormTemplateVersions_StorageObjectKey");
@@ -1923,6 +1939,30 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                             Name = "Payers",
                             Route = "/access-control/payers",
                             SortOrder = 7
+                        },
+                        new
+                        {
+                            Id = 18,
+                            IconKey = "documents",
+                            IsActive = true,
+                            Key = "client-forms",
+                            ModuleId = 2,
+                            Name = "Forms",
+                            ParentFeatureId = 2,
+                            Route = "/clients/forms",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 19,
+                            IconKey = "clients",
+                            IsActive = true,
+                            Key = "client-list",
+                            ModuleId = 2,
+                            Name = "Client List",
+                            ParentFeatureId = 2,
+                            Route = "/clients/list",
+                            SortOrder = 5
                         });
                 });
 
@@ -2077,6 +2117,16 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             FeatureId = 17,
                             PermissionId = 98
+                        },
+                        new
+                        {
+                            FeatureId = 18,
+                            PermissionId = 74
+                        },
+                        new
+                        {
+                            FeatureId = 19,
+                            PermissionId = 2
                         });
                 });
 

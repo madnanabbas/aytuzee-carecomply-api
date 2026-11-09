@@ -120,6 +120,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.Configure<DevelopmentIdentityOptions>(
             configuration.GetSection(DevelopmentIdentityOptions.SectionName));
+        services.Configure<DevelopmentFormTemplateOptions>(
+            configuration.GetSection(DevelopmentFormTemplateOptions.SectionName));
+        services.AddScoped<DevelopmentFormTemplateInitializer>();
         services.AddOptions<StagingIdentityOptions>().Bind(
             configuration.GetSection(StagingIdentityOptions.SectionName));
         services.AddScoped<StagingRoleReconciler>();
@@ -241,5 +244,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddOptions<LocalFormContentStoreOptions>()
             .Bind(configuration.GetSection(LocalFormContentStoreOptions.SectionName));
         services.AddSingleton<IFormContentStore, LocalFormContentStore>();
+        services.AddScoped<IClientFormDirectory, EfClientFormDirectory>();
+        services.AddScoped<IFormTemplateAdministration, EfFormTemplateAdministration>();
+        services.AddScoped<IFormTemplatePdfValidator, PdfPigFormTemplatePdfValidator>();
     }
 }

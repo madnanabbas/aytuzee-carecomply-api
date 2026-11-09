@@ -32,4 +32,27 @@ public sealed class ClientResponsiblePartyTests
         Assert.Throws<InvalidOperationException>(() => contact.UpdateResponsibleParty(
             "Alex", "Parent", "(612) 555-0111", null, null, false, false, true));
     }
+
+    [Fact]
+    public void StructuredNamesAreOptionalIndependentValuesAndAreNeverParsedFromName()
+    {
+        var party = new ClientContact(Guid.NewGuid(), Guid.NewGuid(), ClientContactType.ResponsibleParty,
+            "Morgan Rivera", "Parent", "(612) 555-0111", null, true, false, null, null, null);
+
+        party.UpdateResponsibleParty(
+            "Morgan Rivera", "Parent", "(612) 555-0111", null, null, false, false, true);
+
+        Assert.Null(party.FirstName);
+        Assert.Null(party.MiddleName);
+        Assert.Null(party.LastName);
+
+        party.UpdateResponsibleParty(
+            "Morgan Rivera", "Parent", "(612) 555-0111", null, null, false, false, true,
+            " Morgan ", " Lee ", " Rivera ");
+
+        Assert.Equal("Morgan", party.FirstName);
+        Assert.Equal("Lee", party.MiddleName);
+        Assert.Equal("Rivera", party.LastName);
+        Assert.Equal("Morgan Rivera", party.Name);
+    }
 }

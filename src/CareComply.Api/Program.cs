@@ -71,6 +71,7 @@ builder.Services.AddMediator(options =>
     [
         typeof(ValidationBehavior<,>),
         typeof(AuthorizationBehavior<,>),
+        typeof(PlatformAdministratorAuthorizationBehavior<,>),
         typeof(AuditBehavior<,>),
     ];
 });
@@ -87,6 +88,15 @@ if (await DevelopmentIdentityCommand.TryRunAsync(
 }
 
 if (await StagingIdentityCommand.TryRunAsync(
+        app.Services,
+        app.Environment,
+        app.Configuration,
+        args))
+{
+    return;
+}
+
+if (await DevelopmentFormTemplateCommand.TryRunAsync(
         app.Services,
         app.Environment,
         app.Configuration,

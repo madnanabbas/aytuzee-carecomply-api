@@ -135,6 +135,26 @@ public sealed class ClientContactWorkflowApplicationTests
     }
 
     [Fact]
+    public void ResponsiblePartyStructuredNamesAreOptionalAndLengthLimited()
+    {
+        var optional = new CreateClientResponsiblePartyValidator().Validate(
+            new CreateClientResponsiblePartyCommand(
+                Guid.NewGuid(), "Display Name", "Parent", "(612) 555-0147", null,
+                null, false, false, true));
+        Assert.True(optional.IsValid);
+
+        var tooLong = new string('x', ClientContact.MaximumStructuredNameLength + 1);
+        var invalid = new CreateClientResponsiblePartyValidator().Validate(
+            new CreateClientResponsiblePartyCommand(
+                Guid.NewGuid(), "Display Name", "Parent", "(612) 555-0147", null,
+                null, false, false, true, tooLong, tooLong, tooLong));
+
+        Assert.Equal(
+            ["FirstName", "MiddleName", "LastName"],
+            invalid.Errors.Select(error => error.PropertyName).ToArray());
+    }
+
+    [Fact]
     public void ContactValidatorsApplySharedUsPhoneFaxAndExtensionRules()
     {
         var clientId = Guid.NewGuid();

@@ -415,6 +415,7 @@ public sealed class AuthenticationIntegrationTests(SqlServerApiFactory factory)
                 "UX_FormTemplateFieldMappings_Version_FieldName",
                 "UX_FormTemplates_Company_Key",
                 "UX_FormTemplates_Platform_Key",
+                "UX_FormTemplateVersions_Sha256",
                 "UX_FormTemplateVersions_StorageObjectKey",
                 "UX_FormTemplateVersions_Template_Version",
                 "UX_NavigationFeatures_Key",

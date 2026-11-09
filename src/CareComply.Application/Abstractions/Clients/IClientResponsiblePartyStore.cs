@@ -3,10 +3,12 @@ using CareComply.Domain.Clients;
 namespace CareComply.Application.Abstractions.Clients;
 
 public sealed record ResponsiblePartyItem(Guid Id, string Name, string Relationship, string Phone,
-    string Email, string Address, bool? LivesWithClient, bool? HasSpenddown, bool IsActive);
+    string Email, string Address, bool? LivesWithClient, bool? HasSpenddown, bool IsActive,
+    string? FirstName = null, string? MiddleName = null, string? LastName = null);
 
 public sealed record SaveResponsibleParty(string Name, string Relationship, string Phone,
-    string? Email, string? Address, bool LivesWithClient, bool HasSpenddown, bool IsActive);
+    string? Email, string? Address, bool LivesWithClient, bool HasSpenddown, bool IsActive,
+    string? FirstName = null, string? MiddleName = null, string? LastName = null);
 
 public interface IClientResponsiblePartyStore
 {

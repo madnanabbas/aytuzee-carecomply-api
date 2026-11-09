@@ -18,6 +18,7 @@ using System.Security.Cryptography;
 using CareComply.Application.Abstractions.Identity;
 using CareComply.Application.Abstractions.Clients;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace CareComply.Api.IntegrationTests;
 
@@ -29,10 +30,15 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
         "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04";
 
     private readonly MsSqlContainer _sqlServer = new MsSqlBuilder(SqlServerImage).Build();
+    private readonly string _formContentRoot = Path.Combine(
+        Path.GetTempPath(), "CareComplyTests", Guid.NewGuid().ToString("N"));
+
+    public string FormContentRoot => _formContentRoot;
 
     public RecordingPasswordRecoveryEmailSender PasswordRecoveryEmailSender { get; } = new();
     public RecordingMfaEmailSender MfaEmailSender { get; } = new();
     public RecordingClientGuestInvitationEmailSender ClientGuestInvitationEmailSender { get; } = new();
+    public RecordingLogProvider FormTemplateLogProvider { get; } = new();
     public PermissionQueryCounter PermissionQueryCounter =>
         Services.GetRequiredService<PermissionQueryCounter>();
 
@@ -239,6 +245,7 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:CareComply", GetApplicationConnectionString());
+        builder.UseSetting("FormContentStorage:LocalRootPath", _formContentRoot);
         builder.UseSetting("Authentication:LoginRateLimit:PermitLimit", "100");
         builder.UseSetting("Authentication:Mfa:VerificationRateLimitPermitLimit", "100");
         builder.UseSetting("Authentication:Mfa:EmailResendRateLimitPermitLimit", "100");
@@ -254,6 +261,7 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
             "EmailDelivery:AzureCommunicationServicesEndpoint",
             "https://carecomply-email.communication.azure.com");
         builder.UseSetting("EmailDelivery:SenderAddress", "noreply@example.test");
+        builder.ConfigureLogging(logging => logging.AddProvider(FormTemplateLogProvider));
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IPasswordRecoveryEmailSender>();
@@ -316,6 +324,46 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
     {
         await base.DisposeAsync();
         await _sqlServer.DisposeAsync();
+        if (Directory.Exists(_formContentRoot))
+            Directory.Delete(_formContentRoot, recursive: true);
+    }
+}
+
+public sealed class RecordingLogProvider : ILoggerProvider
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> messages = new();
+
+    public IReadOnlyList<string> Messages => [.. messages];
+
+    public ILogger CreateLogger(string categoryName) => new RecordingLogger(messages);
+
+    public void Clear()
+    {
+        while (messages.TryDequeue(out _))
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class RecordingLogger(
+        System.Collections.Concurrent.ConcurrentQueue<string> messages) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel)) messages.Enqueue(formatter(state, exception));
+        }
     }
 }
 

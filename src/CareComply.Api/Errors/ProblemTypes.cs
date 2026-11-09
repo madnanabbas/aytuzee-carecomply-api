@@ -12,6 +12,7 @@ public static class ProblemTypes
     public const string ClientInvalidServiceChange = "urn:carecomply:problem:client-invalid-service-change";
     public const string ClientInvalidState = "urn:carecomply:problem:client-invalid-state";
     public const string ClientNotFound = "urn:carecomply:problem:client-not-found";
+    public const string ClientFormNotFound = "urn:carecomply:problem:client-form-not-found";
     public const string ClientTodoNotFound = "urn:carecomply:problem:client-todo-not-found";
     public const string ClientTodoInvalidAssignee = "urn:carecomply:problem:client-todo-invalid-assignee";
     public const string ClientTodoInvalidState = "urn:carecomply:problem:client-todo-invalid-state";
@@ -25,6 +26,11 @@ public static class ProblemTypes
     public const string ClientServiceAgreementConflict = "urn:carecomply:problem:client-service-agreement-conflict";
     public const string ClientServiceAgreementNotFound = "urn:carecomply:problem:client-service-agreement-not-found";
     public const string EmployeeConflict = "urn:carecomply:problem:employee-conflict";
+    public const string FormTemplateConflict = "urn:carecomply:problem:form-template-conflict";
+    public const string FormTemplateDuplicateContent = "urn:carecomply:problem:form-template-duplicate-content";
+    public const string FormTemplateInvalidPdf = "urn:carecomply:problem:form-template-invalid-pdf";
+    public const string FormTemplateNotFound = "urn:carecomply:problem:form-template-not-found";
+    public const string FormTemplateRateLimit = "urn:carecomply:problem:form-template-rate-limit";
     public const string InternalServerError = "urn:carecomply:problem:internal-server-error";
     public const string MfaChallengeExpired = "urn:carecomply:problem:mfa-challenge-expired";
     public const string MfaEnrollmentState = "urn:carecomply:problem:mfa-enrollment-state";

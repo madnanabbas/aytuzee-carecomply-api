@@ -44,7 +44,8 @@ internal sealed class EfClientResponsiblePartyStore(CareComplyDbContext db, ITen
         var party = new ClientContact(Guid.CreateVersion7(), clientId, ClientContactType.ResponsibleParty,
             request.Name, request.Relationship, request.Phone, request.Email, false, false, null, null, null);
         party.UpdateResponsibleParty(request.Name, request.Relationship, request.Phone, request.Email,
-            request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive);
+            request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive,
+            request.FirstName, request.MiddleName, request.LastName);
         db.ClientContacts.Add(party);
         await db.SaveChangesAsync(cancellationToken);
         return Map(party);
@@ -57,7 +58,8 @@ internal sealed class EfClientResponsiblePartyStore(CareComplyDbContext db, ITen
             && contact.ClientId == clientId && contact.Type == ClientContactType.ResponsibleParty, cancellationToken);
         if (party is null) return null;
         party.UpdateResponsibleParty(request.Name, request.Relationship, request.Phone, request.Email,
-            request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive);
+            request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive,
+            request.FirstName, request.MiddleName, request.LastName);
         await db.SaveChangesAsync(cancellationToken);
         return Map(party);
     }
@@ -70,7 +72,8 @@ internal sealed class EfClientResponsiblePartyStore(CareComplyDbContext db, ITen
             cancellationToken);
         if (party is null) return null;
         party.UpdateResponsibleParty(request.Name, request.Relationship, request.Phone, request.Email,
-            request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive);
+            request.Address, request.LivesWithClient, request.HasSpenddown, request.IsActive,
+            request.FirstName, request.MiddleName, request.LastName);
         await db.SaveChangesAsync(cancellationToken);
         return Map(party);
     }
@@ -84,5 +87,6 @@ internal sealed class EfClientResponsiblePartyStore(CareComplyDbContext db, ITen
     }
 
     private static ResponsiblePartyItem Map(ClientContact party) => new(party.Id, party.Name, party.Relationship,
-        party.Phone, party.Email, party.Address, party.LivesWithClient, party.HasSpenddown, party.IsActive);
+        party.Phone, party.Email, party.Address, party.LivesWithClient, party.HasSpenddown, party.IsActive,
+        party.FirstName, party.MiddleName, party.LastName);
 }

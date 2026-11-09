@@ -126,6 +126,8 @@ internal sealed class FormTemplateVersionConfiguration
             .HasDatabaseName("UX_FormTemplateVersions_Template_Version").IsUnique();
         entity.HasIndex(version => version.StorageObjectKey)
             .HasDatabaseName("UX_FormTemplateVersions_StorageObjectKey").IsUnique();
+        entity.HasIndex(version => version.Sha256)
+            .HasDatabaseName("UX_FormTemplateVersions_Sha256").IsUnique();
         entity.HasIndex(version => version.UploadedByUserId)
             .HasDatabaseName("IX_FormTemplateVersions_UploadedByUserId");
         entity.HasIndex(version => version.PublishedByUserId)

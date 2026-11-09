@@ -13,6 +13,7 @@ public sealed class ClientContact
     public const int MaximumPostalCodeLength = 10;
     public const int MaximumCityLength = 100;
     public const int MaximumStateLength = 100;
+    public const int MaximumStructuredNameLength = 100;
 
     private ClientContact()
     {
@@ -78,6 +79,9 @@ public sealed class ClientContact
     public string PostalCode { get; private set; } = string.Empty;
     public string City { get; private set; } = string.Empty;
     public string State { get; private set; } = string.Empty;
+    public string? FirstName { get; private set; }
+    public string? MiddleName { get; private set; }
+    public string? LastName { get; private set; }
 
     public void UpdateConsultationProvider(string name, string? phone, string? email,
         string? supportProviderName, string? supportProviderPhone, string? supportProviderAddress, bool isActive)
@@ -140,7 +144,8 @@ public sealed class ClientContact
     }
 
     public void UpdateResponsibleParty(string name, string relationship, string phone, string? email,
-        string? address, bool livesWithClient, bool hasSpenddown, bool isActive)
+        string? address, bool livesWithClient, bool hasSpenddown, bool isActive,
+        string? firstName = null, string? middleName = null, string? lastName = null)
     {
         if (Type != ClientContactType.ResponsibleParty) throw new InvalidOperationException("Not a responsible party.");
         Name = NormalizeRequired(name, MaximumNameLength, nameof(name));
@@ -151,6 +156,9 @@ public sealed class ClientContact
         LivesWithClient = livesWithClient;
         HasSpenddown = hasSpenddown;
         IsActive = isActive;
+        FirstName = NormalizeOptional(firstName, MaximumStructuredNameLength, nameof(firstName));
+        MiddleName = NormalizeOptional(middleName, MaximumStructuredNameLength, nameof(middleName));
+        LastName = NormalizeOptional(lastName, MaximumStructuredNameLength, nameof(lastName));
     }
 
     private static string NormalizeRequired(string value, int maxLength, string parameterName)
@@ -162,6 +170,14 @@ public sealed class ClientContact
     private static string Normalize(string? value, int maxLength, string parameterName)
     {
         var normalized = (value ?? string.Empty).Trim();
+        if (normalized.Length > maxLength) throw new ArgumentOutOfRangeException(parameterName);
+        return normalized;
+    }
+
+    private static string? NormalizeOptional(string? value, int maxLength, string parameterName)
+    {
+        var normalized = value?.Trim();
+        if (string.IsNullOrEmpty(normalized)) return null;
         if (normalized.Length > maxLength) throw new ArgumentOutOfRangeException(parameterName);
         return normalized;
     }

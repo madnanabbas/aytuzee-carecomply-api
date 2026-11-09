@@ -196,6 +196,12 @@ internal sealed class ClientContactConfiguration : IEntityTypeConfiguration<Clie
         entity.Property(contact => contact.PostalCode).HasMaxLength(ClientContact.MaximumPostalCodeLength).IsRequired();
         entity.Property(contact => contact.City).HasMaxLength(ClientContact.MaximumCityLength).IsRequired();
         entity.Property(contact => contact.State).HasMaxLength(ClientContact.MaximumStateLength).IsRequired();
+        entity.Property(contact => contact.FirstName)
+            .HasMaxLength(ClientContact.MaximumStructuredNameLength);
+        entity.Property(contact => contact.MiddleName)
+            .HasMaxLength(ClientContact.MaximumStructuredNameLength);
+        entity.Property(contact => contact.LastName)
+            .HasMaxLength(ClientContact.MaximumStructuredNameLength);
         entity.HasOne<Client>()
             .WithMany()
             .HasForeignKey(contact => contact.ClientId)

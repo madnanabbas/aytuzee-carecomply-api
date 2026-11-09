@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using System.Security.Claims;
 using CareComply.Api.Errors;
 using CareComply.Application.Abstractions.Authentication;
 using CareComply.Infrastructure.Identity;
@@ -17,6 +18,7 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
     public const string ForgotPasswordRateLimitPolicy = "authentication-password-forgot";
     public const string ResetPasswordRateLimitPolicy = "authentication-password-reset";
     public const string PublicClientIntakeRateLimitPolicy = "public-client-intake";
+    public const string FormTemplateUploadRateLimitPolicy = "form-template-upload";
 
     private const int DefaultLoginPermitLimit = 10;
     private const int DefaultMfaPermitLimit = 5;
@@ -24,6 +26,7 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
     private const int DefaultForgotPasswordPermitLimit = 5;
     private const int DefaultResetPasswordPermitLimit = 10;
     private const int DefaultPublicClientIntakePermitLimit = 20;
+    private const int DefaultFormTemplateUploadPermitLimit = 10;
 
     public static IServiceCollection AddCareComplyAuthentication(
         this IServiceCollection services,
@@ -98,6 +101,9 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
         var publicClientIntakePermitLimit = configuration.GetValue<int?>(
             "ClientGuestInvitation:PublicValidationRateLimitPermitLimit")
             ?? DefaultPublicClientIntakePermitLimit;
+        var formTemplateUploadPermitLimit = configuration.GetValue<int?>(
+            "FormTemplates:UploadRateLimit:PermitLimit")
+            ?? DefaultFormTemplateUploadPermitLimit;
 
         if (loginPermitLimit <= 0)
         {
@@ -121,6 +127,12 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
         {
             throw new InvalidOperationException(
                 "Public client-intake rate-limit permit count must be greater than zero.");
+        }
+
+        if (formTemplateUploadPermitLimit <= 0)
+        {
+            throw new InvalidOperationException(
+                "Form-template upload rate-limit permit count must be greater than zero.");
         }
 
         services.AddRateLimiter(options =>
@@ -186,6 +198,18 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                         QueueLimit = 0,
                         Window = TimeSpan.FromMinutes(1),
                     }));
+            options.AddPolicy(FormTemplateUploadRateLimitPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                        ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                        ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        AutoReplenishment = true,
+                        PermitLimit = formTemplateUploadPermitLimit,
+                        QueueLimit = 0,
+                        Window = TimeSpan.FromMinutes(1),
+                    }));
             options.OnRejected = async (context, cancellationToken) =>
             {
                 var isMfaRequest = context.HttpContext.Request.Path.StartsWithSegments(
@@ -193,6 +217,9 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                     StringComparison.OrdinalIgnoreCase);
                 var isPasswordRecoveryRequest = context.HttpContext.Request.Path.StartsWithSegments(
                     "/api/auth/password",
+                    StringComparison.OrdinalIgnoreCase);
+                var isFormTemplateUpload = context.HttpContext.Request.Path.StartsWithSegments(
+                    "/api/form-templates",
                     StringComparison.OrdinalIgnoreCase);
                 var problemDetailsService = context.HttpContext.RequestServices
                     .GetRequiredService<IProblemDetailsService>();
@@ -203,12 +230,16 @@ public static class CareComplyAuthenticationServiceCollectionExtensions
                         ProblemDetails = new ProblemDetails
                         {
                             Status = StatusCodes.Status429TooManyRequests,
-                            Title = isMfaRequest
+                            Title = isFormTemplateUpload
+                                ? "Too many form-template upload attempts."
+                                : isMfaRequest
                                 ? "Too many verification attempts."
                                 : isPasswordRecoveryRequest
                                     ? "Too many password recovery attempts."
                                     : "Too many authentication attempts.",
-                            Type = isMfaRequest
+                            Type = isFormTemplateUpload
+                                ? ProblemTypes.FormTemplateRateLimit
+                                : isMfaRequest
                                 ? ProblemTypes.MfaRateLimit
                                 : isPasswordRecoveryRequest
                                     ? ProblemTypes.PasswordRecoveryRateLimit

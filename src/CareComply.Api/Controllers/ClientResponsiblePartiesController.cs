@@ -33,7 +33,8 @@ public sealed class ClientResponsiblePartiesController(ISender sender) : Control
         var result = await sender.Send(
             new CreateClientResponsiblePartyCommand(clientId, request.Name, request.Relationship,
                 request.Phone, request.Email, request.Address, request.LivesWithClient,
-                request.HasSpenddown, request.IsActive),
+                request.HasSpenddown, request.IsActive, request.FirstName,
+                request.MiddleName, request.LastName),
             cancellationToken);
         if (result.AuthorizationFailure is { } failure)
             return AuthorizationFailureResult(failure);
@@ -51,7 +52,8 @@ public sealed class ClientResponsiblePartiesController(ISender sender) : Control
         var result = await sender.Send(
             new UpdateClientResponsiblePartyCommand(clientId, partyId, request.Name,
                 request.Relationship, request.Phone, request.Email, request.Address,
-                request.LivesWithClient, request.HasSpenddown, request.IsActive),
+                request.LivesWithClient, request.HasSpenddown, request.IsActive,
+                request.FirstName, request.MiddleName, request.LastName),
             cancellationToken);
         if (result.AuthorizationFailure is { } failure)
             return AuthorizationFailureResult(failure);
@@ -63,4 +65,5 @@ public sealed class ClientResponsiblePartiesController(ISender sender) : Control
 }
 
 public sealed record ResponsiblePartyRequest(string? Name, string? Relationship, string? Phone,
-    string? Email, string? Address, bool? LivesWithClient, bool? HasSpenddown, bool? IsActive);
+    string? Email, string? Address, bool? LivesWithClient, bool? HasSpenddown, bool? IsActive,
+    string? FirstName = null, string? MiddleName = null, string? LastName = null);

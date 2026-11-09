@@ -14,6 +14,7 @@ Read `/docs/25-mfa-authentication.md` before changing MFA policy, authenticator 
 Read `/docs/26-user-management.md` before changing user-directory, provisioning, profile/status/MFA administration, or User Management API contracts.
 Read `/docs/27-password-recovery.md` before changing forgot/reset password endpoints, Identity reset tokens, password-recovery email delivery, trusted reset URLs, or related configuration.
 Read `/docs/28-dynamic-navigation.md` before changing navigation metadata persistence, navigation filtering, hierarchy, or the navigation API.
+Read `/docs/30-form-template-administration.md` before changing form-template uploads, PDF validation, script policy, template administration endpoints, or private template content handling.
 
 Applies to `/backend`.
 

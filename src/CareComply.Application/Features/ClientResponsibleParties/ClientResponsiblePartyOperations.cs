@@ -23,7 +23,10 @@ public sealed record CreateClientResponsiblePartyCommand(
     string? Address,
     bool? LivesWithClient,
     bool? HasSpenddown,
-    bool? IsActive) : ICommand<ClientResponsiblePartyResult>, IRequirePermission,
+    bool? IsActive,
+    string? FirstName = null,
+    string? MiddleName = null,
+    string? LastName = null) : ICommand<ClientResponsiblePartyResult>, IRequirePermission,
     IAuditableRequest<ClientResponsiblePartyResult>
 {
     public string RequiredPermission => Permissions.ClientResponsibleParty.Create;
@@ -46,7 +49,10 @@ public sealed record UpdateClientResponsiblePartyCommand(
     string? Address,
     bool? LivesWithClient,
     bool? HasSpenddown,
-    bool? IsActive) : ICommand<ClientResponsiblePartyResult>, IRequirePermission,
+    bool? IsActive,
+    string? FirstName = null,
+    string? MiddleName = null,
+    string? LastName = null) : ICommand<ClientResponsiblePartyResult>, IRequirePermission,
     IAuditableRequest<ClientResponsiblePartyResult>
 {
     public string RequiredPermission => Permissions.ClientResponsibleParty.Edit;
@@ -98,7 +104,7 @@ public sealed class CreateClientResponsiblePartyHandler(IClientResponsiblePartyS
     private static SaveResponsibleParty ToInput(CreateClientResponsiblePartyCommand command) =>
         new(command.Name!, command.Relationship!, command.Phone!, command.Email, command.Address,
             command.LivesWithClient!.Value, command.HasSpenddown!.Value,
-            command.IsActive!.Value);
+            command.IsActive!.Value, command.FirstName, command.MiddleName, command.LastName);
 }
 
 public sealed class UpdateClientResponsiblePartyHandler(IClientResponsiblePartyStore store)
@@ -113,7 +119,8 @@ public sealed class UpdateClientResponsiblePartyHandler(IClientResponsiblePartyS
                 command.PartyId,
                 new(command.Name!, command.Relationship!, command.Phone!, command.Email,
                     command.Address, command.LivesWithClient!.Value,
-                    command.HasSpenddown!.Value, command.IsActive!.Value),
+                    command.HasSpenddown!.Value, command.IsActive!.Value,
+                    command.FirstName, command.MiddleName, command.LastName),
                 cancellationToken));
 }
 
@@ -128,7 +135,10 @@ public abstract class ClientResponsiblePartyValidator<T> : AbstractValidator<T>
         Func<T, string?> address,
         Func<T, bool?> livesWithClient,
         Func<T, bool?> hasSpenddown,
-        Func<T, bool?> isActive)
+        Func<T, bool?> isActive,
+        Func<T, string?>? firstName = null,
+        Func<T, string?>? middleName = null,
+        Func<T, string?>? lastName = null)
     {
         Required(x => name(x), "Name", ClientContact.MaximumNameLength);
         Required(x => relationship(x), "Relationship", ClientContact.MaximumRelationshipLength);
@@ -150,6 +160,9 @@ public abstract class ClientResponsiblePartyValidator<T> : AbstractValidator<T>
             .WithMessage("Select whether this person has spenddown responsibility.");
         RuleFor(x => isActive(x)).NotNull().OverridePropertyName("IsActive")
             .WithMessage("Select a status.");
+        if (firstName is not null) OptionalStructuredName(firstName, "FirstName");
+        if (middleName is not null) OptionalStructuredName(middleName, "MiddleName");
+        if (lastName is not null) OptionalStructuredName(lastName, "LastName");
     }
 
     private void Required(Func<T, string?> value, string field, int maximum) =>
@@ -158,6 +171,13 @@ public abstract class ClientResponsiblePartyValidator<T> : AbstractValidator<T>
             .Must(item => !string.IsNullOrWhiteSpace(item)).OverridePropertyName(field)
             .WithMessage($"{field} is required.")
             .MaximumLength(maximum).OverridePropertyName(field).WithMessage($"{field} is too long.");
+
+    private void OptionalStructuredName(Func<T, string?> value, string field) =>
+        RuleFor(x => value(x))
+            .MaximumLength(ClientContact.MaximumStructuredNameLength)
+            .OverridePropertyName(field)
+            .WithMessage($"{field} is too long.")
+            .When(x => !string.IsNullOrWhiteSpace(value(x)));
 }
 
 public sealed class CreateClientResponsiblePartyValidator
@@ -165,7 +185,8 @@ public sealed class CreateClientResponsiblePartyValidator
 {
     public CreateClientResponsiblePartyValidator() =>
         AddRules(x => x.Name, x => x.Relationship, x => x.Phone, x => x.Email,
-            x => x.Address, x => x.LivesWithClient, x => x.HasSpenddown, x => x.IsActive);
+            x => x.Address, x => x.LivesWithClient, x => x.HasSpenddown, x => x.IsActive,
+            x => x.FirstName, x => x.MiddleName, x => x.LastName);
 }
 
 public sealed class UpdateClientResponsiblePartyValidator
@@ -173,7 +194,8 @@ public sealed class UpdateClientResponsiblePartyValidator
 {
     public UpdateClientResponsiblePartyValidator() =>
         AddRules(x => x.Name, x => x.Relationship, x => x.Phone, x => x.Email,
-            x => x.Address, x => x.LivesWithClient, x => x.HasSpenddown, x => x.IsActive);
+            x => x.Address, x => x.LivesWithClient, x => x.HasSpenddown, x => x.IsActive,
+            x => x.FirstName, x => x.MiddleName, x => x.LastName);
 }
 
 internal static class ClientResponsiblePartyAudit
