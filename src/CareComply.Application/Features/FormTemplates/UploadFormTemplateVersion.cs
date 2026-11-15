@@ -109,7 +109,8 @@ public sealed class UploadFormTemplateVersionCommandHandler(
                         command.EffectiveFrom,
                         command.EffectiveTo,
                         actorUserId,
-                        now),
+                        now,
+                        file.Warnings.Count > 0),
                     versionId => UploadFormTemplateCommandHandler.CreateMappings(
                         versionId, file.Fields, now),
                     cancellationToken);

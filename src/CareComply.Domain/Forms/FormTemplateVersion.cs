@@ -28,6 +28,9 @@ public sealed class FormTemplateVersion
     public DateTimeOffset UploadedAtUtc { get; private set; }
     public Guid? PublishedByUserId { get; private set; }
     public DateTimeOffset? PublishedAtUtc { get; private set; }
+    public bool RequiresWarningAcknowledgement { get; private set; }
+    public Guid? MappingsReviewedByUserId { get; private set; }
+    public DateTimeOffset? MappingsReviewedAtUtc { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
 
     public static FormTemplateVersion CreateDraft(
@@ -44,7 +47,8 @@ public sealed class FormTemplateVersion
         DateOnly? effectiveFrom,
         DateOnly? effectiveTo,
         Guid uploadedByUserId,
-        DateTimeOffset uploadedAtUtc)
+        DateTimeOffset uploadedAtUtc,
+        bool requiresWarningAcknowledgement = false)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("A form template version identifier is required.", nameof(id));
@@ -87,7 +91,19 @@ public sealed class FormTemplateVersion
             EffectiveTo = effectiveTo,
             UploadedByUserId = uploadedByUserId,
             UploadedAtUtc = EnsureUtc(uploadedAtUtc, nameof(uploadedAtUtc)),
+            RequiresWarningAcknowledgement = requiresWarningAcknowledgement,
         };
+    }
+
+    public void MarkMappingsReviewed(Guid reviewedByUserId, DateTimeOffset reviewedAtUtc)
+    {
+        if (reviewedByUserId == Guid.Empty)
+            throw new ArgumentException("A reviewing user identifier is required.", nameof(reviewedByUserId));
+        if (Status != FormTemplateVersionStatus.Draft)
+            throw new InvalidOperationException("Only draft form template mappings can be reviewed.");
+
+        MappingsReviewedByUserId = reviewedByUserId;
+        MappingsReviewedAtUtc = EnsureUtc(reviewedAtUtc, nameof(reviewedAtUtc));
     }
 
     public void Publish(Guid publishedByUserId, DateTimeOffset publishedAtUtc)

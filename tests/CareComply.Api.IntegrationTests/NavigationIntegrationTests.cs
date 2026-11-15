@@ -115,6 +115,66 @@ public sealed class NavigationIntegrationTests(SqlServerApiFactory factory)
     }
 
     [Fact]
+    public async Task FormTemplatesNavigationIsPermissionFilteredUnderAccessManagement()
+    {
+        var templateViewer = await factory.CreateUserAsync(
+            $"form-template-navigation-{Guid.NewGuid():N}@example.test", ValidPassword);
+        await factory.GrantPermissionAsync(templateViewer.Id, Permissions.FormTemplate.View);
+        using var templateClient = factory.CreateSecureClient();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await templateClient.PostAsJsonAsync("/api/auth/login",
+                new { email = templateViewer.Email, password = ValidPassword })).StatusCode);
+
+        var templateModules = await templateClient
+            .GetFromJsonAsync<NavigationModuleResponse[]>("/api/navigation");
+
+        Assert.NotNull(templateModules);
+        var administration = Assert.Single(
+            templateModules, module => module.Key == "administration");
+        var accessManagement = Assert.Single(
+            administration.Features, feature => feature.Key == "access-management");
+        var formTemplates = Assert.Single(accessManagement.Children);
+        Assert.Equal("form-templates", formTemplates.Key);
+        Assert.Equal("Form Templates", formTemplates.Name);
+        Assert.Equal("/access-control/form-templates", formTemplates.Route);
+        Assert.Equal("documents", formTemplates.IconKey);
+        Assert.Equal(50, formTemplates.SortOrder);
+
+        var userViewer = await factory.CreateUserAsync(
+            $"users-navigation-{Guid.NewGuid():N}@example.test", ValidPassword);
+        await factory.GrantPermissionAsync(userViewer.Id, Permissions.User.View);
+        using var userClient = factory.CreateSecureClient();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await userClient.PostAsJsonAsync("/api/auth/login",
+                new { email = userViewer.Email, password = ValidPassword })).StatusCode);
+
+        var userModules = await userClient
+            .GetFromJsonAsync<NavigationModuleResponse[]>("/api/navigation");
+
+        Assert.NotNull(userModules);
+        var userAdministration = Assert.Single(
+            userModules, module => module.Key == "administration");
+        var userAccessManagement = Assert.Single(
+            userAdministration.Features, feature => feature.Key == "access-management");
+        Assert.Equal("users", Assert.Single(userAccessManagement.Children).Key);
+        Assert.DoesNotContain(userAccessManagement.Children,
+            child => child.Key == "form-templates");
+
+        var unrelated = await factory.CreateUserAsync(
+            $"unrelated-navigation-{Guid.NewGuid():N}@example.test", ValidPassword);
+        await factory.GrantPermissionAsync(unrelated.Id, Permissions.Dashboard.View);
+        using var unrelatedClient = factory.CreateSecureClient();
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await unrelatedClient.PostAsJsonAsync("/api/auth/login",
+                new { email = unrelated.Email, password = ValidPassword })).StatusCode);
+
+        var unrelatedModules = await unrelatedClient
+            .GetFromJsonAsync<NavigationModuleResponse[]>("/api/navigation");
+        Assert.NotNull(unrelatedModules);
+        Assert.DoesNotContain(unrelatedModules, module => module.Key == "administration");
+    }
+
+    [Fact]
     public async Task ReturnsOnlyOrderedDatabaseMetadataAllowedByEffectivePermissions()
     {
         var user = await factory.CreateUserAsync(

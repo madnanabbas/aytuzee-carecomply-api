@@ -166,7 +166,8 @@ public sealed class UploadFormTemplateCommandHandler(
             command.EffectiveFrom,
             command.EffectiveTo,
             actorUserId,
-            now);
+            now,
+            file.Warnings.Count > 0);
 
     internal static FormTemplateFieldMapping[] CreateMappings(
         Guid versionId,

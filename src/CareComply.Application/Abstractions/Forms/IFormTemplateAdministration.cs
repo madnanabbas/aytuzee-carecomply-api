@@ -36,6 +36,28 @@ public interface IFormTemplateAdministration
         Guid templateId,
         Guid versionId,
         CancellationToken cancellationToken);
+
+    Task<FormTemplateMappingSet?> GetMappingSetAsync(
+        Guid templateId,
+        Guid versionId,
+        CancellationToken cancellationToken);
+
+    Task<FormTemplateMappingWriteResult> ReplaceMappingsAsync(
+        Guid templateId,
+        Guid versionId,
+        byte[] expectedRowVersion,
+        IReadOnlyList<FormTemplateMappingUpdate> mappings,
+        Guid actorUserId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<FormTemplateMappingWriteResult> PublishAsync(
+        Guid templateId,
+        Guid versionId,
+        byte[] expectedRowVersion,
+        Guid actorUserId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
 }
 
 public sealed record FormTemplateDuplicate(Guid TemplateId, string TemplateKey, int VersionNumber);
@@ -63,7 +85,8 @@ public sealed record FormTemplateSummary(
     bool IsActive,
     int VersionCount,
     int? LatestVersionNumber,
-    FormTemplateVersionStatus? LatestVersionStatus);
+    FormTemplateVersionStatus? LatestVersionStatus,
+    DateTimeOffset? LatestVersionUploadedAtUtc);
 
 public sealed record FormTemplateDetails(
     Guid Id,
@@ -92,7 +115,13 @@ public sealed record FormTemplateVersionDetails(
     DateOnly? EffectiveFrom,
     DateOnly? EffectiveTo,
     DateTimeOffset UploadedAtUtc,
-    int FieldCount);
+    int FieldCount,
+    bool RequiresWarningAcknowledgement,
+    Guid? MappingsReviewedByUserId,
+    DateTimeOffset? MappingsReviewedAtUtc,
+    Guid? PublishedByUserId,
+    DateTimeOffset? PublishedAtUtc,
+    byte[] RowVersion);
 
 public sealed record FormTemplateFieldDetails(
     Guid Id,
@@ -116,3 +145,33 @@ public sealed record FormTemplateRetireResult(
     Guid TemplateId,
     Guid VersionId,
     int? VersionNumber);
+
+public sealed record FormTemplateMappingSet(
+    Guid TemplateId,
+    string TemplateKey,
+    Guid VersionId,
+    int VersionNumber,
+    FormTemplateVersionStatus Status,
+    bool RequiresWarningAcknowledgement,
+    Guid? MappingsReviewedByUserId,
+    DateTimeOffset? MappingsReviewedAtUtc,
+    byte[] RowVersion,
+    IReadOnlyList<FormTemplateFieldDetails> Mappings);
+
+public sealed record FormTemplateMappingUpdate(
+    Guid Id,
+    FormFieldPurpose FieldPurpose,
+    string? BindingKey);
+
+public enum FormTemplateMappingWriteStatus
+{
+    Succeeded = 1,
+    NotFound,
+    InvalidState,
+    IncompleteSet,
+    Conflict,
+}
+
+public sealed record FormTemplateMappingWriteResult(
+    FormTemplateMappingWriteStatus Status,
+    FormTemplateMappingSet? MappingSet);

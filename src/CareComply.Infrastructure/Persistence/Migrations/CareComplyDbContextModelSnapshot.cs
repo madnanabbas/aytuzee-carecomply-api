@@ -1598,6 +1598,12 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FormTemplateId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("MappingsReviewedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid?>("MappingsReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -1611,6 +1617,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("PublishedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("RequiresWarningAcknowledgement")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -1652,6 +1663,9 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("PK_FormTemplateVersions");
 
+                    b.HasIndex("MappingsReviewedByUserId")
+                        .HasDatabaseName("IX_FormTemplateVersions_MappingsReviewedByUserId");
+
                     b.HasIndex("PublishedByUserId")
                         .HasDatabaseName("IX_FormTemplateVersions_PublishedByUserId");
 
@@ -1678,6 +1692,8 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_FormTemplateVersions_EffectiveDates", "[EffectiveTo] IS NULL OR [EffectiveFrom] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
 
                             t.HasCheckConstraint("CK_FormTemplateVersions_FormTechnology", "[FormTechnology] IN ('AcroForm', 'HybridXfaAcroForm', 'Unsupported')");
+
+                            t.HasCheckConstraint("CK_FormTemplateVersions_MappingReview", "([MappingsReviewedByUserId] IS NULL AND [MappingsReviewedAtUtc] IS NULL) OR ([MappingsReviewedByUserId] IS NOT NULL AND [MappingsReviewedAtUtc] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_FormTemplateVersions_PdfContent", "[ContentType] = 'application/pdf' AND LEN([StorageObjectKey]) = 32 AND [StorageObjectKey] NOT LIKE '%[^0-9a-f]%' AND LEN([Sha256]) = 64 AND [Sha256] NOT LIKE '%[^0-9a-f]%' ");
 
@@ -1963,6 +1979,18 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                             ParentFeatureId = 2,
                             Route = "/clients/list",
                             SortOrder = 5
+                        },
+                        new
+                        {
+                            Id = 20,
+                            IconKey = "documents",
+                            IsActive = true,
+                            Key = "form-templates",
+                            ModuleId = 5,
+                            Name = "Form Templates",
+                            ParentFeatureId = 11,
+                            Route = "/access-control/form-templates",
+                            SortOrder = 50
                         });
                 });
 
@@ -2127,6 +2155,11 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         {
                             FeatureId = 19,
                             PermissionId = 2
+                        },
+                        new
+                        {
+                            FeatureId = 20,
+                            PermissionId = 104
                         });
                 });
 
@@ -3841,6 +3874,12 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_FormTemplateVersions_FormTemplates_FormTemplateId");
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("MappingsReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_FormTemplateVersions_Users_MappingsReviewedByUserId");
 
                     b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()

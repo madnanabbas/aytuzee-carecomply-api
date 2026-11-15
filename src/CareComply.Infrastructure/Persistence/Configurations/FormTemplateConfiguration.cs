@@ -79,6 +79,10 @@ internal sealed class FormTemplateVersionConfiguration
                 "CK_FormTemplateVersions_FormTechnology",
                 "[FormTechnology] IN ('AcroForm', 'HybridXfaAcroForm', 'Unsupported')");
             table.HasCheckConstraint(
+                "CK_FormTemplateVersions_MappingReview",
+                "([MappingsReviewedByUserId] IS NULL AND [MappingsReviewedAtUtc] IS NULL) OR "
+                + "([MappingsReviewedByUserId] IS NOT NULL AND [MappingsReviewedAtUtc] IS NOT NULL)");
+            table.HasCheckConstraint(
                 "CK_FormTemplateVersions_PdfContent",
                 "[ContentType] = 'application/pdf' AND LEN([StorageObjectKey]) = 32 "
                 + "AND [StorageObjectKey] NOT LIKE '%[^0-9a-f]%' "
@@ -104,6 +108,9 @@ internal sealed class FormTemplateVersionConfiguration
         entity.Property(version => version.EffectiveTo).HasColumnType("date");
         entity.Property(version => version.UploadedAtUtc).HasColumnType("datetimeoffset(0)");
         entity.Property(version => version.PublishedAtUtc).HasColumnType("datetimeoffset(0)");
+        entity.Property(version => version.MappingsReviewedAtUtc).HasColumnType("datetimeoffset(0)");
+        entity.Property(version => version.RequiresWarningAcknowledgement)
+            .HasDefaultValue(false).IsRequired();
         entity.Property(version => version.RowVersion).IsRowVersion();
 
         entity.HasOne<FormTemplate>()
@@ -121,6 +128,11 @@ internal sealed class FormTemplateVersionConfiguration
             .HasForeignKey(version => version.PublishedByUserId)
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("FK_FormTemplateVersions_Users_PublishedByUserId");
+        entity.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(version => version.MappingsReviewedByUserId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_FormTemplateVersions_Users_MappingsReviewedByUserId");
 
         entity.HasIndex(version => new { version.FormTemplateId, version.VersionNumber })
             .HasDatabaseName("UX_FormTemplateVersions_Template_Version").IsUnique();
@@ -132,6 +144,8 @@ internal sealed class FormTemplateVersionConfiguration
             .HasDatabaseName("IX_FormTemplateVersions_UploadedByUserId");
         entity.HasIndex(version => version.PublishedByUserId)
             .HasDatabaseName("IX_FormTemplateVersions_PublishedByUserId");
+        entity.HasIndex(version => version.MappingsReviewedByUserId)
+            .HasDatabaseName("IX_FormTemplateVersions_MappingsReviewedByUserId");
         entity.HasIndex(version => new { version.FormTemplateId, version.Status, version.VersionNumber })
             .HasDatabaseName("IX_FormTemplateVersions_Template_Status_Version");
     }

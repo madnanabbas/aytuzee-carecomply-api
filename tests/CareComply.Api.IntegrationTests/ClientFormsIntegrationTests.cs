@@ -115,6 +115,38 @@ public sealed class ClientFormsIntegrationTests(SqlServerApiFactory factory)
     }
 
     [Fact]
+    public async Task StaffEndpointsExposeOnlyNewlyPublishedVersionAfterPriorVersionAutoRetires()
+    {
+        var actor = await CreatePermittedActorAsync("newest-published");
+        var fixture = await CreateFixtureAsync(actor.Id, structuredPartyNames: true);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<CareComplyDbContext>();
+            var previous = await context.FormTemplateVersions
+                .SingleAsync(item => item.Id == fixture.PublishedVersionId);
+            var newest = await context.FormTemplateVersions
+                .SingleAsync(item => item.Id == fixture.DraftVersionId);
+            previous.Retire();
+            newest.Publish(actor.Id, DateTimeOffset.UtcNow);
+            await context.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateSecureClient();
+        await SignInAsync(client, actor.Email!);
+        var list = await client.GetStringAsync(
+            $"/api/clients/{fixture.ClientId}/form-templates");
+        Assert.Contains(fixture.DraftVersionId.ToString(), list, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(fixture.PublishedVersionId.ToString(), list, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(fixture.RetiredVersionId.ToString(), list, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(
+            $"/api/clients/{fixture.ClientId}/form-templates/{fixture.DraftVersionId}/bindings")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(
+            $"/api/clients/{fixture.ClientId}/form-templates/{fixture.PublishedVersionId}/bindings")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(
+            $"/api/clients/{fixture.ClientId}/form-templates/{fixture.RetiredVersionId}/content")).StatusCode);
+    }
+
+    [Fact]
     public async Task LegacyResponsiblePartyNameIsNotParsedForStructuredBindings()
     {
         var actor = await factory.CreateUserAsync(

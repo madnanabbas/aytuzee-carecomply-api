@@ -9,6 +9,7 @@ using Mediator;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Microsoft.AspNetCore.RateLimiting;
+using CareComply.Domain.Forms;
 
 namespace CareComply.Api.Controllers;
 
@@ -65,6 +66,66 @@ public sealed class FormTemplatesController(ISender sender) : ControllerBase
         return result.Fields is null
             ? NotFoundProblem()
             : Ok(result.Fields.Select(MapField).ToArray());
+    }
+
+    [HttpGet("binding-catalog")]
+    [HasPermission(Permissions.FormTemplate.Manage)]
+    public async Task<ActionResult<FormTemplateBindingCatalogResponse>> BindingCatalog(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetFormTemplateBindingCatalogQuery(), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return AuthorizationFailureResult(failure);
+        return Ok(new FormTemplateBindingCatalogResponse(result.Items!
+            .GroupBy(item => item.Group)
+            .Select(group => new FormTemplateBindingGroupResponse(group.Key, group
+                .Select(item => new FormTemplateBindingItemResponse(item.Key, item.Label,
+                    item.AllowedPdfFieldTypes.Select(type => type.ToString()).ToArray()))
+                .ToArray())).ToArray()));
+    }
+
+    [HttpGet("{templateId:guid}/versions/{versionId:guid}/mappings")]
+    [HasPermission(Permissions.FormTemplate.Manage)]
+    public async Task<ActionResult<FormTemplateMappingSetResponse>> Mappings(
+        Guid templateId, Guid versionId, CancellationToken cancellationToken) =>
+        MappingResult(await sender.Send(new GetFormTemplateMappingsQuery(templateId, versionId), cancellationToken));
+
+    [HttpPut("{templateId:guid}/versions/{versionId:guid}/mappings")]
+    [HasPermission(Permissions.FormTemplate.Manage)]
+    public async Task<ActionResult<FormTemplateMappingSetResponse>> ReplaceMappings(
+        Guid templateId, Guid versionId, ReplaceFormTemplateMappingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryDecodeRowVersion(request.RowVersion, out var rowVersion)) return InvalidMappingProblem("invalid-row-version");
+        var mappings = new List<FormTemplateMappingUpdate>(request.Mappings.Count);
+        foreach (var item in request.Mappings)
+        {
+            if (!Enum.TryParse<FormFieldPurpose>(item.FieldPurpose, true, out var purpose))
+                return InvalidMappingProblem("invalid-purpose");
+            mappings.Add(new(item.Id, purpose, item.BindingKey));
+        }
+        return MappingResult(await sender.Send(new ReplaceFormTemplateMappingsCommand(
+            templateId, versionId, rowVersion, mappings), cancellationToken));
+    }
+
+    [HttpGet("{templateId:guid}/versions/{versionId:guid}/preview")]
+    [HasPermission(Permissions.FormTemplate.Manage)]
+    public async Task<ActionResult<FormTemplatePreviewResponse>> Preview(
+        Guid templateId, Guid versionId, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new PreviewFormTemplateMappingsQuery(templateId, versionId), cancellationToken);
+        if (result.AuthorizationFailure is { } failure) return AuthorizationFailureResult(failure);
+        return result.Values is null ? NotFoundProblem() : Ok(new FormTemplatePreviewResponse(true,
+            result.Values.Select(value => new FormTemplatePreviewValueResponse(value.MappingId, value.Value)).ToArray()));
+    }
+
+    [HttpPost("{templateId:guid}/versions/{versionId:guid}/publish")]
+    [HasPermission(Permissions.FormTemplate.Manage)]
+    public async Task<ActionResult<FormTemplateMappingSetResponse>> Publish(
+        Guid templateId, Guid versionId, PublishFormTemplateVersionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryDecodeRowVersion(request.RowVersion, out var rowVersion)) return InvalidMappingProblem("invalid-row-version");
+        return MappingResult(await sender.Send(new PublishFormTemplateVersionCommand(
+            templateId, versionId, rowVersion, request.AcknowledgeValidationWarnings), cancellationToken));
     }
 
     [HttpGet("{templateId:guid}/versions/{versionId:guid}/content")]
@@ -181,6 +242,30 @@ public sealed class FormTemplatesController(ISender sender) : ControllerBase
         title: "A PDF file is required.",
         type: ProblemTypes.FormTemplateInvalidPdf);
 
+    private ActionResult<FormTemplateMappingSetResponse> MappingResult(FormTemplateMappingOperationResult result)
+    {
+        if (result.AuthorizationFailure is { } failure) return AuthorizationFailureResult(failure);
+        if (result.Status == FormTemplateMappingOperationStatus.Succeeded) return Ok(MapMappingSet(result.MappingSet!));
+        if (result.Status == FormTemplateMappingOperationStatus.NotFound) return NotFoundProblem();
+        if (result.Status == FormTemplateMappingOperationStatus.Conflict)
+            return Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "The form template changed. Reload and try again.", type: ProblemTypes.FormTemplateConflict);
+        var code = result.Status switch
+        {
+            FormTemplateMappingOperationStatus.InvalidState => "version-not-draft",
+            FormTemplateMappingOperationStatus.ReviewRequired => "mapping-review-required",
+            FormTemplateMappingOperationStatus.WarningAcknowledgementRequired => "warning-acknowledgement-required",
+            _ => result.ErrorCodes.Count > 0 ? result.ErrorCodes[0] : "invalid-mapping",
+        };
+        return InvalidMappingProblem(code);
+    }
+
+    private ActionResult<FormTemplateMappingSetResponse> InvalidMappingProblem(string code) => Problem(
+        statusCode: StatusCodes.Status400BadRequest,
+        title: "The form template mapping is invalid.",
+        type: ProblemTypes.FormTemplateInvalidMapping,
+        extensions: new Dictionary<string, object?> { ["code"] = code });
+
     private ObjectResult NotFoundProblem() => Problem(
         statusCode: StatusCodes.Status404NotFound,
         title: "Form template not found.",
@@ -191,7 +276,8 @@ public sealed class FormTemplatesController(ISender sender) : ControllerBase
 
     private static FormTemplateSummaryResponse MapSummary(FormTemplateSummary item) => new(
         item.Id, item.Key, item.Name, item.Category, item.OwnerType.ToString(), item.CompanyId,
-        item.IsActive, item.VersionCount, item.LatestVersionNumber, item.LatestVersionStatus?.ToString());
+        item.IsActive, item.VersionCount, item.LatestVersionNumber,
+        item.LatestVersionStatus?.ToString(), item.LatestVersionUploadedAtUtc);
 
     private static FormTemplateResponse MapTemplate(FormTemplateDetails item) => new(
         item.Id, item.Key, item.Name, item.Description, item.Category, item.OwnerType.ToString(),
@@ -205,6 +291,27 @@ public sealed class FormTemplatesController(ISender sender) : ControllerBase
     private static FormTemplateFieldResponse MapField(FormTemplateFieldDetails item) => new(
         item.Id, item.PdfFieldName, item.PdfFieldType.ToString(), item.FieldPurpose.ToString(),
         item.BindingKey, item.FormatKey, item.IsUserEditable);
+
+    private static FormTemplateMappingSetResponse MapMappingSet(FormTemplateMappingSet set) => new(
+        set.TemplateId, set.TemplateKey, set.VersionId, set.VersionNumber, set.Status.ToString(),
+        set.RequiresWarningAcknowledgement, set.MappingsReviewedAtUtc is not null,
+        Convert.ToBase64String(set.RowVersion), set.Mappings.Select(item => new FormTemplateMappingResponse(
+            item.Id, item.PdfFieldName, item.PdfFieldType.ToString(), item.FieldPurpose.ToString(),
+            item.BindingKey, FormTemplateMappingPolicy.SuggestPurpose(item.PdfFieldName)?.ToString())).ToArray());
+
+    private static bool TryDecodeRowVersion(string value, out byte[] rowVersion)
+    {
+        try
+        {
+            rowVersion = Convert.FromBase64String(value);
+            return rowVersion.Length > 0;
+        }
+        catch (FormatException)
+        {
+            rowVersion = [];
+            return false;
+        }
+    }
 
     private static string SafeFileName(string originalFileName)
     {

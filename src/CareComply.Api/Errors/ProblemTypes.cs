@@ -29,6 +29,7 @@ public static class ProblemTypes
     public const string FormTemplateConflict = "urn:carecomply:problem:form-template-conflict";
     public const string FormTemplateDuplicateContent = "urn:carecomply:problem:form-template-duplicate-content";
     public const string FormTemplateInvalidPdf = "urn:carecomply:problem:form-template-invalid-pdf";
+    public const string FormTemplateInvalidMapping = "urn:carecomply:problem:form-template-invalid-mapping";
     public const string FormTemplateNotFound = "urn:carecomply:problem:form-template-not-found";
     public const string FormTemplateRateLimit = "urn:carecomply:problem:form-template-rate-limit";
     public const string InternalServerError = "urn:carecomply:problem:internal-server-error";

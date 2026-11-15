@@ -107,6 +107,11 @@ public sealed class EfFormTemplateAdministration(
                     .Where(version => version.FormTemplateId == template.Id)
                     .OrderByDescending(version => version.VersionNumber)
                     .Select(version => (FormTemplateVersionStatus?)version.Status)
+                    .FirstOrDefault(),
+                dbContext.FormTemplateVersions
+                    .Where(version => version.FormTemplateId == template.Id)
+                    .OrderByDescending(version => version.VersionNumber)
+                    .Select(version => (DateTimeOffset?)version.UploadedAtUtc)
                     .FirstOrDefault()))
             .ToArrayAsync(cancellationToken);
     }
@@ -194,6 +199,130 @@ public sealed class EfFormTemplateAdministration(
         }
     }
 
+    public async Task<FormTemplateMappingSet?> GetMappingSetAsync(
+        Guid templateId,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
+        var template = await dbContext.FormTemplates.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == templateId, cancellationToken);
+        if (template is null || template.OwnerType != FormTemplateOwnerType.Platform) return null;
+        var version = await dbContext.FormTemplateVersions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.FormTemplateId == templateId && item.Id == versionId,
+                cancellationToken);
+        if (version is null) return null;
+        var mappings = await dbContext.FormTemplateFieldMappings.AsNoTracking()
+            .Where(item => item.FormTemplateVersionId == versionId)
+            .OrderBy(item => item.PdfFieldName)
+            .Select(item => new FormTemplateFieldDetails(
+                item.Id, item.PdfFieldName, item.PdfFieldType, item.FieldPurpose,
+                item.BindingKey, item.FormatKey, item.IsUserEditable))
+            .ToArrayAsync(cancellationToken);
+        return MapMappingSet(template, version, mappings);
+    }
+
+    public async Task<FormTemplateMappingWriteResult> ReplaceMappingsAsync(
+        Guid templateId,
+        Guid versionId,
+        byte[] expectedRowVersion,
+        IReadOnlyList<FormTemplateMappingUpdate> mappings,
+        Guid actorUserId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var template = await dbContext.FormTemplates
+            .SingleOrDefaultAsync(item => item.Id == templateId, cancellationToken);
+        if (template is null || template.OwnerType != FormTemplateOwnerType.Platform)
+            return new(FormTemplateMappingWriteStatus.NotFound, null);
+        var version = await dbContext.FormTemplateVersions
+            .SingleOrDefaultAsync(item => item.FormTemplateId == templateId && item.Id == versionId,
+                cancellationToken);
+        if (version is null) return new(FormTemplateMappingWriteStatus.NotFound, null);
+        if (version.Status != FormTemplateVersionStatus.Draft)
+            return new(FormTemplateMappingWriteStatus.InvalidState, null);
+        if (!version.RowVersion.SequenceEqual(expectedRowVersion))
+            return new(FormTemplateMappingWriteStatus.Conflict, null);
+
+        var entities = await dbContext.FormTemplateFieldMappings
+            .Where(item => item.FormTemplateVersionId == versionId)
+            .ToArrayAsync(cancellationToken);
+        if (entities.Length != mappings.Count
+            || entities.Select(item => item.Id).ToHashSet().SetEquals(mappings.Select(item => item.Id)) is false)
+            return new(FormTemplateMappingWriteStatus.IncompleteSet, null);
+
+        var updates = mappings.ToDictionary(item => item.Id);
+        foreach (var entity in entities)
+        {
+            var update = updates[entity.Id];
+            entity.Update(update.FieldPurpose, update.BindingKey, nowUtc);
+        }
+        version.MarkMappingsReviewed(actorUserId, nowUtc);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new(FormTemplateMappingWriteStatus.Conflict, null);
+        }
+
+        return new(FormTemplateMappingWriteStatus.Succeeded,
+            MapMappingSet(template, version, entities
+                .OrderBy(item => item.PdfFieldName)
+                .Select(item => new FormTemplateFieldDetails(
+                    item.Id, item.PdfFieldName, item.PdfFieldType, item.FieldPurpose,
+                    item.BindingKey, item.FormatKey, item.IsUserEditable)).ToArray()));
+    }
+
+    public async Task<FormTemplateMappingWriteResult> PublishAsync(
+        Guid templateId,
+        Guid versionId,
+        byte[] expectedRowVersion,
+        Guid actorUserId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var template = await dbContext.FormTemplates
+            .SingleOrDefaultAsync(item => item.Id == templateId, cancellationToken);
+        if (template is null || template.OwnerType != FormTemplateOwnerType.Platform)
+            return new(FormTemplateMappingWriteStatus.NotFound, null);
+        var version = await dbContext.FormTemplateVersions
+            .SingleOrDefaultAsync(item => item.FormTemplateId == templateId && item.Id == versionId,
+                cancellationToken);
+        if (version is null) return new(FormTemplateMappingWriteStatus.NotFound, null);
+        if (version.Status != FormTemplateVersionStatus.Draft)
+            return new(FormTemplateMappingWriteStatus.InvalidState, null);
+        if (!version.RowVersion.SequenceEqual(expectedRowVersion))
+            return new(FormTemplateMappingWriteStatus.Conflict, null);
+
+        var previous = await dbContext.FormTemplateVersions
+            .Where(item => item.FormTemplateId == templateId
+                && item.Status == FormTemplateVersionStatus.Published
+                && item.Id != versionId)
+            .ToArrayAsync(cancellationToken);
+        foreach (var published in previous) published.Retire();
+        version.Publish(actorUserId, nowUtc);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new(FormTemplateMappingWriteStatus.Conflict, null);
+        }
+
+        var mappings = await dbContext.FormTemplateFieldMappings.AsNoTracking()
+            .Where(item => item.FormTemplateVersionId == versionId)
+            .OrderBy(item => item.PdfFieldName)
+            .Select(item => new FormTemplateFieldDetails(
+                item.Id, item.PdfFieldName, item.PdfFieldType, item.FieldPurpose,
+                item.BindingKey, item.FormatKey, item.IsUserEditable))
+            .ToArrayAsync(cancellationToken);
+        return new(FormTemplateMappingWriteStatus.Succeeded, MapMappingSet(template, version, mappings));
+    }
+
     private IQueryable<FormTemplate> VisibleTemplates(TenantScope scope) =>
         dbContext.FormTemplates.AsNoTracking().Where(template =>
             scope.IsPlatformAdministrator
@@ -204,7 +333,18 @@ public sealed class EfFormTemplateAdministration(
         new(version.Id, version.FormTemplateId, version.VersionNumber, version.Status,
             version.OriginalFileName, version.StorageObjectKey, version.ContentType,
             version.SizeBytes, version.Sha256, version.PageCount, version.FormTechnology,
-            version.EffectiveFrom, version.EffectiveTo, version.UploadedAtUtc, fieldCount);
+            version.EffectiveFrom, version.EffectiveTo, version.UploadedAtUtc, fieldCount,
+            version.RequiresWarningAcknowledgement, version.MappingsReviewedByUserId,
+            version.MappingsReviewedAtUtc, version.PublishedByUserId, version.PublishedAtUtc,
+            version.RowVersion);
+
+    private static FormTemplateMappingSet MapMappingSet(
+        FormTemplate template,
+        FormTemplateVersion version,
+        IReadOnlyList<FormTemplateFieldDetails> mappings) => new(
+            template.Id, template.Key, version.Id, version.VersionNumber, version.Status,
+            version.RequiresWarningAcknowledgement, version.MappingsReviewedByUserId,
+            version.MappingsReviewedAtUtc, version.RowVersion, mappings);
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is SqlException { Number: 2601 or 2627 };

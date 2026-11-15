@@ -40,7 +40,8 @@ public sealed record FormTemplateSummaryResponse(
     bool IsActive,
     int VersionCount,
     int? LatestVersionNumber,
-    string? LatestVersionStatus);
+    string? LatestVersionStatus,
+    DateTimeOffset? LatestVersionUploadedAtUtc);
 
 public sealed record FormTemplateVersionResponse(
     Guid Id,
@@ -73,4 +74,28 @@ public sealed record FormTemplateMutationResponse(
     IReadOnlyList<FormTemplateWarningResponse> Warnings);
 
 public sealed record FormTemplateWarningResponse(string Code, string Message);
+
+public sealed record FormTemplateBindingCatalogResponse(IReadOnlyList<FormTemplateBindingGroupResponse> Groups);
+public sealed record FormTemplateBindingGroupResponse(string Label, IReadOnlyList<FormTemplateBindingItemResponse> Items);
+public sealed record FormTemplateBindingItemResponse(string Key, string Label, IReadOnlyList<string> AllowedPdfFieldTypes);
+
+public sealed record FormTemplateMappingSetResponse(
+    Guid TemplateId, string TemplateKey, Guid VersionId, int VersionNumber, string Status,
+    bool RequiresWarningAcknowledgement, bool IsReviewed, string RowVersion,
+    IReadOnlyList<FormTemplateMappingResponse> Mappings);
+
+public sealed record FormTemplateMappingResponse(
+    Guid Id, string PdfFieldName, string PdfFieldType, string FieldPurpose,
+    string? BindingKey, string? SuggestedPurpose);
+
+public sealed class ReplaceFormTemplateMappingsRequest
+{
+    public string RowVersion { get; init; } = string.Empty;
+    public IReadOnlyList<ReplaceFormTemplateMappingItemRequest> Mappings { get; init; } = [];
+}
+
+public sealed record ReplaceFormTemplateMappingItemRequest(Guid Id, string FieldPurpose, string? BindingKey);
+public sealed record PublishFormTemplateVersionRequest(string RowVersion, bool AcknowledgeValidationWarnings);
+public sealed record FormTemplatePreviewResponse(bool IsSynthetic, IReadOnlyList<FormTemplatePreviewValueResponse> Values);
+public sealed record FormTemplatePreviewValueResponse(Guid MappingId, string Value);
 

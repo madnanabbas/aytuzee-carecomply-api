@@ -68,6 +68,26 @@ public sealed class FormTemplateFieldMapping
         };
     }
 
+    public void Update(
+        FormFieldPurpose fieldPurpose,
+        string? bindingKey,
+        DateTimeOffset updatedAtUtc)
+    {
+        if (!Enum.IsDefined(fieldPurpose)) throw new ArgumentOutOfRangeException(nameof(fieldPurpose));
+        var normalizedBindingKey = NormalizeOptional(
+            bindingKey,
+            MaximumBindingKeyLength,
+            nameof(bindingKey));
+        if (fieldPurpose == FormFieldPurpose.Data && normalizedBindingKey is null)
+            throw new ArgumentException("A data field requires an approved binding key.", nameof(bindingKey));
+        if (fieldPurpose != FormFieldPurpose.Data && normalizedBindingKey is not null)
+            throw new ArgumentException("Only data fields may have a binding key.", nameof(bindingKey));
+
+        FieldPurpose = fieldPurpose;
+        BindingKey = normalizedBindingKey;
+        UpdatedAtUtc = EnsureUtc(updatedAtUtc, nameof(updatedAtUtc));
+    }
+
     private static string NormalizeRequired(string value, int maximumLength, string parameterName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
