@@ -8,14 +8,16 @@ public sealed class LocalFormContentStore : IFormContentStore
     private const int BufferSize = 64 * 1024;
     private readonly string rootPath;
 
-    public LocalFormContentStore(IOptions<LocalFormContentStoreOptions> options)
+    private readonly long maximumUploadSizeBytes;
+
+    public LocalFormContentStore(IOptions<FormContentStorageOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
         var configuredPath = options.Value.LocalRootPath;
         if (string.IsNullOrWhiteSpace(configuredPath))
         {
             throw new InvalidOperationException(
-                $"The required configuration '{LocalFormContentStoreOptions.SectionName}:LocalRootPath' is missing.");
+                $"The required configuration '{FormContentStorageOptions.SectionName}:LocalRootPath' is missing.");
         }
 
         if (!Path.IsPathFullyQualified(configuredPath))
@@ -24,6 +26,8 @@ public sealed class LocalFormContentStore : IFormContentStore
         rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(configuredPath));
         if (ContainsWwwRootSegment(rootPath))
             throw new InvalidOperationException("The local form-content root path must be outside wwwroot.");
+
+        maximumUploadSizeBytes = options.Value.MaximumUploadSizeBytes;
     }
 
     public async Task WriteAsync(
@@ -47,7 +51,8 @@ public sealed class LocalFormContentStore : IFormContentStore
                 BufferSize,
                 FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                await content.CopyToAsync(destination, cancellationToken);
+                using var boundedContent = new MaximumLengthReadStream(content, maximumUploadSizeBytes);
+                await boundedContent.CopyToAsync(destination, cancellationToken);
                 await destination.FlushAsync(cancellationToken);
             }
 
@@ -86,14 +91,7 @@ public sealed class LocalFormContentStore : IFormContentStore
 
     private string ResolvePath(string objectKey)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(objectKey);
-        if (!Guid.TryParseExact(objectKey, "N", out var objectId)
-            || !string.Equals(objectKey, objectId.ToString("N"), StringComparison.Ordinal))
-        {
-            throw new ArgumentException(
-                "A canonical opaque form-content object key is required.",
-                nameof(objectKey));
-        }
+        FormContentObjectKey.Validate(objectKey);
 
         var resolved = Path.GetFullPath(Path.Combine(rootPath, objectKey + ".pdf"));
         var expectedPrefix = rootPath + Path.DirectorySeparatorChar;

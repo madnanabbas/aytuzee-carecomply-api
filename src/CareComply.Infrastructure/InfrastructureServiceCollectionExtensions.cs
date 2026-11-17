@@ -28,6 +28,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Azure.Core;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 
 namespace CareComply.Infrastructure;
 
@@ -241,11 +244,115 @@ public static class InfrastructureServiceCollectionExtensions
         IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddOptions<LocalFormContentStoreOptions>()
-            .Bind(configuration.GetSection(LocalFormContentStoreOptions.SectionName));
-        services.AddSingleton<IFormContentStore, LocalFormContentStore>();
+        var section = configuration.GetSection(FormContentStorageOptions.SectionName);
+        var configured = section.Get<FormContentStorageOptions>() ?? new FormContentStorageOptions();
+        ValidateFormContentStorageOptions(configured);
+        services.AddOptions<FormContentStorageOptions>().Bind(section);
+
+        if (string.Equals(
+            configured.Provider,
+            FormContentStorageProviders.AzureBlob,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<TokenCredential>(_ => new DefaultAzureCredential());
+            services.AddSingleton(serviceProvider =>
+            {
+                var blobOptions = new BlobClientOptions
+                {
+                    Retry =
+                    {
+                        Mode = RetryMode.Exponential,
+                        MaxRetries = configured.AzureBlob.MaximumRetries,
+                        Delay = configured.AzureBlob.RetryDelay,
+                        MaxDelay = configured.AzureBlob.MaximumRetryDelay,
+                        NetworkTimeout = configured.AzureBlob.NetworkTimeout,
+                    },
+                };
+                return new BlobServiceClient(
+                    new Uri(configured.AzureBlob.AccountEndpoint, UriKind.Absolute),
+                    serviceProvider.GetRequiredService<TokenCredential>(),
+                    blobOptions);
+            });
+            services.AddSingleton(serviceProvider =>
+                serviceProvider.GetRequiredService<BlobServiceClient>()
+                    .GetBlobContainerClient(configured.AzureBlob.ContainerName));
+            services.AddSingleton<IFormContentStore, AzureBlobFormContentStore>();
+        }
+        else
+        {
+            services.AddSingleton<IFormContentStore, LocalFormContentStore>();
+        }
+
         services.AddScoped<IClientFormDirectory, EfClientFormDirectory>();
         services.AddScoped<IFormTemplateAdministration, EfFormTemplateAdministration>();
         services.AddScoped<IFormTemplatePdfValidator, PdfPigFormTemplatePdfValidator>();
+    }
+
+    private static void ValidateFormContentStorageOptions(FormContentStorageOptions options)
+    {
+        if (options.MaximumUploadSizeBytes <= 0)
+            throw new InvalidOperationException("The form-content maximum upload size must be positive.");
+
+        if (string.Equals(
+            options.Provider,
+            FormContentStorageProviders.Local,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(options.LocalRootPath))
+                throw new InvalidOperationException("The local form-content storage configuration is incomplete.");
+            return;
+        }
+
+        if (!string.Equals(
+            options.Provider,
+            FormContentStorageProviders.AzureBlob,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The form-content storage provider is not supported.");
+        }
+
+        if (!Uri.TryCreate(options.AzureBlob.AccountEndpoint, UriKind.Absolute, out var endpoint)
+            || !string.Equals(endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrEmpty(endpoint.Query)
+            || !string.IsNullOrEmpty(endpoint.Fragment)
+            || !string.IsNullOrEmpty(endpoint.UserInfo)
+            || endpoint.AbsolutePath is not ("" or "/")
+            || !IsValidContainerName(options.AzureBlob.ContainerName))
+        {
+            throw new InvalidOperationException("The Azure Blob form-content storage configuration is incomplete or invalid.");
+        }
+
+        if (options.AzureBlob.MaximumRetries is < 0 or > 5
+            || options.AzureBlob.RetryDelay <= TimeSpan.Zero
+            || options.AzureBlob.RetryDelay > TimeSpan.FromSeconds(30)
+            || options.AzureBlob.MaximumRetryDelay <= TimeSpan.Zero
+            || options.AzureBlob.MaximumRetryDelay < options.AzureBlob.RetryDelay
+            || options.AzureBlob.MaximumRetryDelay > TimeSpan.FromMinutes(2)
+            || options.AzureBlob.NetworkTimeout <= TimeSpan.Zero
+            || options.AzureBlob.NetworkTimeout > TimeSpan.FromMinutes(2))
+        {
+            throw new InvalidOperationException("The Azure Blob form-content reliability configuration is invalid.");
+        }
+    }
+
+    private static bool IsValidContainerName(string value)
+    {
+        if (value.Length is < 3 or > 63
+            || !char.IsAsciiLetterOrDigit(value[0])
+            || !char.IsAsciiLetterOrDigit(value[^1]))
+        {
+            return false;
+        }
+
+        var previousWasHyphen = false;
+        foreach (var character in value)
+        {
+            var valid = char.IsAsciiDigit(character)
+                || character is >= 'a' and <= 'z'
+                || character == '-';
+            if (!valid || (character == '-' && previousWasHyphen)) return false;
+            previousWasHyphen = character == '-';
+        }
+        return true;
     }
 }

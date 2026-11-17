@@ -105,6 +105,7 @@ public sealed class AuthenticationFoundationTests
                     "Server=localhost;Database=CareComply;User Id=test;Password=test;Encrypt=true",
                 ["Authentication:Mfa:Issuer"] = "CareComply",
                 ["Authentication:Mfa:RequiredPermissions:0"] = "Unknown.Manage",
+                ["FormContentStorage:LocalRootPath"] = Path.GetTempPath(),
             })
             .Build();
         services.AddInfrastructure(configuration);

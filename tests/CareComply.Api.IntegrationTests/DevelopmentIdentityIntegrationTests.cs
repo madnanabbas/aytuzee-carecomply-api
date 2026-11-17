@@ -163,6 +163,7 @@ public sealed class DevelopmentIdentityIntegrationTests(SqlServerApiFactory fact
     {
         var values = new Dictionary<string, string?>
         {
+            ["FormContentStorage:LocalRootPath"] = Path.GetTempPath(),
             [$"{DevelopmentIdentityOptions.SectionName}:Enabled"] = "true",
             [$"{DevelopmentIdentityOptions.SectionName}:Users:SystemAdministratorPassword"] =
                 SystemAdministratorPassword,
