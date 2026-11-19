@@ -37,6 +37,8 @@ public sealed class CareComplyDbContext
     public DbSet<ClientServiceAgreementLine> ClientServiceAgreementLines => Set<ClientServiceAgreementLine>();
     public DbSet<ClientServiceAgreementLineDiagnosis> ClientServiceAgreementLineDiagnoses =>
         Set<ClientServiceAgreementLineDiagnosis>();
+    public DbSet<ClientDocument> ClientDocuments => Set<ClientDocument>();
+    public DbSet<ClientDocumentVersion> ClientDocumentVersions => Set<ClientDocumentVersion>();
     public DbSet<FormTemplate> FormTemplates => Set<FormTemplate>();
     public DbSet<FormTemplateVersion> FormTemplateVersions => Set<FormTemplateVersion>();
     public DbSet<FormTemplateFieldMapping> FormTemplateFieldMappings =>

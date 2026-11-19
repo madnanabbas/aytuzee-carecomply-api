@@ -10,7 +10,11 @@ public sealed class FormContentStorageOptions
 
     public string LocalRootPath { get; set; } = string.Empty;
 
+    public string ClientDocumentLocalRootPath { get; set; } = string.Empty;
+
     public long MaximumUploadSizeBytes { get; set; } = DefaultMaximumUploadSizeBytes;
+
+    public long ClientDocumentMaximumUploadSizeBytes { get; set; } = DefaultMaximumUploadSizeBytes;
 
     public AzureBlobFormContentStoreOptions AzureBlob { get; set; } = new();
 }
@@ -20,6 +24,8 @@ public sealed class AzureBlobFormContentStoreOptions
     public string AccountEndpoint { get; set; } = string.Empty;
 
     public string ContainerName { get; set; } = string.Empty;
+
+    public string ClientDocumentContainerName { get; set; } = string.Empty;
 
     public int MaximumRetries { get; set; } = 3;
 

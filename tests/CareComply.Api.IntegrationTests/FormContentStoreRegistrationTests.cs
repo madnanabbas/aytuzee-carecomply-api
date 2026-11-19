@@ -1,6 +1,8 @@
 using CareComply.Application.Abstractions.Forms;
+using CareComply.Application.Abstractions.ClientDocuments;
 using CareComply.Infrastructure;
 using CareComply.Infrastructure.Forms;
+using CareComply.Infrastructure.ClientDocuments;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,9 +17,11 @@ public sealed class FormContentStoreRegistrationTests
         {
             ["FormContentStorage:Provider"] = "Local",
             ["FormContentStorage:LocalRootPath"] = Path.GetTempPath(),
+            ["FormContentStorage:ClientDocumentLocalRootPath"] = Path.GetTempPath(),
         }).BuildServiceProvider();
 
         Assert.IsType<LocalFormContentStore>(provider.GetRequiredService<IFormContentStore>());
+        Assert.IsType<LocalClientDocumentContentStore>(provider.GetRequiredService<IClientDocumentContentStore>());
     }
 
     [Fact]
@@ -28,9 +32,35 @@ public sealed class FormContentStoreRegistrationTests
             ["FormContentStorage:Provider"] = "AzureBlob",
             ["FormContentStorage:AzureBlob:AccountEndpoint"] = "https://synthetic.blob.core.windows.net",
             ["FormContentStorage:AzureBlob:ContainerName"] = "form-templates",
+            ["FormContentStorage:AzureBlob:ClientDocumentContainerName"] = "client-documents",
         }).BuildServiceProvider();
 
         Assert.IsType<AzureBlobFormContentStore>(provider.GetRequiredService<IFormContentStore>());
+        Assert.IsType<AzureBlobClientDocumentContentStore>(provider.GetRequiredService<IClientDocumentContentStore>());
+    }
+
+    [Fact]
+    public void MissingClientDocumentLocalRootFailsClosedWithoutEchoingPaths()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => CreateServices(new()
+        {
+            ["FormContentStorage:Provider"] = "Local",
+            ["FormContentStorage:LocalRootPath"] = @"C:\synthetic\forms",
+        }));
+        Assert.DoesNotContain("synthetic", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MissingClientDocumentAzureContainerFailsClosedWithoutEchoingEndpoint()
+    {
+        const string endpoint = "https://synthetic.blob.core.windows.net";
+        var exception = Assert.Throws<InvalidOperationException>(() => CreateServices(new()
+        {
+            ["FormContentStorage:Provider"] = "AzureBlob",
+            ["FormContentStorage:AzureBlob:AccountEndpoint"] = endpoint,
+            ["FormContentStorage:AzureBlob:ContainerName"] = "form-templates",
+        }));
+        Assert.DoesNotContain(endpoint, exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -51,6 +81,7 @@ public sealed class FormContentStoreRegistrationTests
             ["FormContentStorage:Provider"] = provider,
             ["FormContentStorage:AzureBlob:AccountEndpoint"] = endpoint,
             ["FormContentStorage:AzureBlob:ContainerName"] = container,
+            ["FormContentStorage:AzureBlob:ClientDocumentContainerName"] = container,
         };
 
         var exception = Assert.Throws<InvalidOperationException>(() => CreateServices(values));

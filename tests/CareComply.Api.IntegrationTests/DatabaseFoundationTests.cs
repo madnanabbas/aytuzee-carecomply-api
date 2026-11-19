@@ -46,6 +46,7 @@ public sealed class DatabaseFoundationTests
             ["ConnectionStrings:CareComply"] =
                 "Server=example.invalid;Database=CareComplyTests;Integrated Security=True;Encrypt=True;TrustServerCertificate=False",
             ["FormContentStorage:LocalRootPath"] = Path.GetTempPath(),
+            ["FormContentStorage:ClientDocumentLocalRootPath"] = Path.GetTempPath(),
         };
 
         return new ConfigurationBuilder()

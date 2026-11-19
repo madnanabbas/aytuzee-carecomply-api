@@ -106,6 +106,7 @@ public sealed class AuthenticationFoundationTests
                 ["Authentication:Mfa:Issuer"] = "CareComply",
                 ["Authentication:Mfa:RequiredPermissions:0"] = "Unknown.Manage",
                 ["FormContentStorage:LocalRootPath"] = Path.GetTempPath(),
+                ["FormContentStorage:ClientDocumentLocalRootPath"] = Path.GetTempPath(),
             })
             .Build();
         services.AddInfrastructure(configuration);

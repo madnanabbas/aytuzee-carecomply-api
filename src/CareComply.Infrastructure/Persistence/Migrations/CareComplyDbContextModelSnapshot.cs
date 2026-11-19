@@ -682,6 +682,165 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CurrentVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ReviewDate")
+                        .HasColumnType("date");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientDocuments");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("CurrentVersionId")
+                        .HasDatabaseName("IX_ClientDocuments_CurrentVersionId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("CompanyId", "ClientId")
+                        .HasDatabaseName("IX_ClientDocuments_CompanyId_ClientId");
+
+                    b.HasIndex("ClientId", "Status", "Category")
+                        .HasDatabaseName("IX_ClientDocuments_ClientId_Status_Category");
+
+                    b.ToTable("ClientDocuments", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientDocuments_Status", "[Status] IN (1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientDocumentVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsCurrent")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTimeOffset>("UploadedAtUtc")
+                        .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ClientDocumentVersions");
+
+                    b.HasIndex("DocumentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientDocumentVersions_DocumentId_Current")
+                        .HasFilter("[IsCurrent] = 1");
+
+                    b.HasIndex("Sha256")
+                        .HasDatabaseName("IX_ClientDocumentVersions_Sha256");
+
+                    b.HasIndex("StorageObjectKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientDocumentVersions_StorageObjectKey");
+
+                    b.HasIndex("UploadedByUserId");
+
+                    b.HasIndex("ClientId", "Sha256")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientDocumentVersions_ClientId_Sha256");
+
+                    b.HasIndex("DocumentId", "VersionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ClientDocumentVersions_DocumentId_VersionNumber");
+
+                    b.ToTable("ClientDocumentVersions", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_ClientDocumentVersions_VersionNumber", "[VersionNumber] >= 1");
+                        });
+                });
+
             modelBuilder.Entity("CareComply.Domain.Clients.ClientGuestInvitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3678,6 +3837,48 @@ namespace CareComply.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PayerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("FK_ClientCoverages_Payers_PayerId");
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientDocument", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CareComply.Domain.Clients.ClientDocumentVersion", b =>
+                {
+                    b.HasOne("CareComply.Domain.Clients.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CareComply.Domain.Clients.ClientDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CareComply.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("CareComply.Domain.Clients.ClientGuestInvitation", b =>

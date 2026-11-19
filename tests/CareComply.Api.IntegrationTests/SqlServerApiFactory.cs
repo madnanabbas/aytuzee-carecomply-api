@@ -246,6 +246,7 @@ public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsync
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:CareComply", GetApplicationConnectionString());
         builder.UseSetting("FormContentStorage:LocalRootPath", _formContentRoot);
+        builder.UseSetting("FormContentStorage:ClientDocumentLocalRootPath", Path.Combine(_formContentRoot, "client-documents"));
         builder.UseSetting("Authentication:LoginRateLimit:PermitLimit", "100");
         builder.UseSetting("Authentication:Mfa:VerificationRateLimitPermitLimit", "100");
         builder.UseSetting("Authentication:Mfa:EmailResendRateLimitPermitLimit", "100");

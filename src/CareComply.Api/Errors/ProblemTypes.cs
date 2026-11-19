@@ -12,6 +12,10 @@ public static class ProblemTypes
     public const string ClientInvalidServiceChange = "urn:carecomply:problem:client-invalid-service-change";
     public const string ClientInvalidState = "urn:carecomply:problem:client-invalid-state";
     public const string ClientNotFound = "urn:carecomply:problem:client-not-found";
+    public const string ClientDocumentNotFound = "urn:carecomply:problem:client-document-not-found";
+    public const string ClientDocumentConflict = "urn:carecomply:problem:client-document-conflict";
+    public const string ClientDocumentDuplicate = "urn:carecomply:problem:client-document-duplicate";
+    public const string ClientDocumentInvalidFile = "urn:carecomply:problem:client-document-invalid-file";
     public const string ClientFormNotFound = "urn:carecomply:problem:client-form-not-found";
     public const string ClientTodoNotFound = "urn:carecomply:problem:client-todo-not-found";
     public const string ClientTodoInvalidAssignee = "urn:carecomply:problem:client-todo-invalid-assignee";

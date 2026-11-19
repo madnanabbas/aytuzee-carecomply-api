@@ -1,10 +1,12 @@
 using CareComply.Infrastructure.Clients;
 using CareComply.Infrastructure.Employees;
 using CareComply.Infrastructure.Forms;
+using CareComply.Infrastructure.ClientDocuments;
 using CareComply.Infrastructure.Companies;
 using CareComply.Application.Abstractions.Clients;
 using CareComply.Application.Abstractions.Employees;
 using CareComply.Application.Abstractions.Forms;
+using CareComply.Application.Abstractions.ClientDocuments;
 using CareComply.Application.Abstractions.Companies;
 using CareComply.Application.Abstractions.Auditing;
 using CareComply.Application.Abstractions.Authorization;
@@ -221,6 +223,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IClientHospitalizationStore, EfClientHospitalizationStore>();
         services.AddScoped<IClientCoverageStore, EfClientCoverageStore>();
         services.AddScoped<IClientServiceAgreementStore, EfClientServiceAgreementStore>();
+        services.AddScoped<IClientDocumentAdministration, EfClientDocumentAdministration>();
         services.AddScoped<IClientSensitiveData, DataProtectionClientSensitiveData>();
         services.AddScoped<IClientGuestInvitationCreator, EfClientGuestInvitationCreator>();
         services.AddScoped<IClientGuestInvitationEmailSender, AzureCommunicationClientGuestInvitationEmailSender>();
@@ -276,21 +279,28 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddSingleton(serviceProvider =>
                 serviceProvider.GetRequiredService<BlobServiceClient>()
                     .GetBlobContainerClient(configured.AzureBlob.ContainerName));
+            services.AddSingleton(serviceProvider => new ClientDocumentBlobContainer(
+                serviceProvider.GetRequiredService<BlobServiceClient>()
+                    .GetBlobContainerClient(configured.AzureBlob.ClientDocumentContainerName)));
             services.AddSingleton<IFormContentStore, AzureBlobFormContentStore>();
+            services.AddSingleton<IClientDocumentContentStore, AzureBlobClientDocumentContentStore>();
         }
         else
         {
             services.AddSingleton<IFormContentStore, LocalFormContentStore>();
+            services.AddSingleton<IClientDocumentContentStore, LocalClientDocumentContentStore>();
         }
 
         services.AddScoped<IClientFormDirectory, EfClientFormDirectory>();
         services.AddScoped<IFormTemplateAdministration, EfFormTemplateAdministration>();
         services.AddScoped<IFormTemplatePdfValidator, PdfPigFormTemplatePdfValidator>();
+        services.AddScoped<IClientDocumentFileValidator, ClientDocumentFileValidator>();
     }
 
     private static void ValidateFormContentStorageOptions(FormContentStorageOptions options)
     {
-        if (options.MaximumUploadSizeBytes <= 0)
+        if (options.MaximumUploadSizeBytes <= 0 || options.ClientDocumentMaximumUploadSizeBytes <= 0
+            || options.ClientDocumentMaximumUploadSizeBytes > 10 * 1024 * 1024)
             throw new InvalidOperationException("The form-content maximum upload size must be positive.");
 
         if (string.Equals(
@@ -298,7 +308,8 @@ public static class InfrastructureServiceCollectionExtensions
             FormContentStorageProviders.Local,
             StringComparison.OrdinalIgnoreCase))
         {
-            if (string.IsNullOrWhiteSpace(options.LocalRootPath))
+            if (string.IsNullOrWhiteSpace(options.LocalRootPath)
+                || string.IsNullOrWhiteSpace(options.ClientDocumentLocalRootPath))
                 throw new InvalidOperationException("The local form-content storage configuration is incomplete.");
             return;
         }
@@ -317,7 +328,8 @@ public static class InfrastructureServiceCollectionExtensions
             || !string.IsNullOrEmpty(endpoint.Fragment)
             || !string.IsNullOrEmpty(endpoint.UserInfo)
             || endpoint.AbsolutePath is not ("" or "/")
-            || !IsValidContainerName(options.AzureBlob.ContainerName))
+            || !IsValidContainerName(options.AzureBlob.ContainerName)
+            || !IsValidContainerName(options.AzureBlob.ClientDocumentContainerName))
         {
             throw new InvalidOperationException("The Azure Blob form-content storage configuration is incomplete or invalid.");
         }
